@@ -1,0 +1,45 @@
+{
+    "name": "@igloo/core",
+    "version": "0.1.0",
+    "description": "Core library for FROSTR's IGLOO client functionality - secure distributed key management and remote signing",
+    "type": "module",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "files": [
+      "dist"
+    ],
+    "scripts": {
+      "build": "tsc",
+      "watch": "tsc -w", 
+      "test": "jest",
+      "test:watch": "jest --watch",
+      "clean": "rm -rf dist"
+    },
+    "keywords": [
+      "frost",
+      "bifrost", 
+      "frostr",
+      "nostr",
+      "threshold-signatures",
+      "key-management",
+      "distributed-signing"
+    ],
+    "author": {
+      "name": "austinkelsay",
+      "email": "austinkelsay@protonmail.com"
+    },
+    "license": "MIT",
+    "peerDependencies": {
+      "@frostr/bifrost": "^1.0.6",
+      "nostr-tools": "^2.10.0"
+    },
+    "devDependencies": {
+      "@types/jest": "^29.5.14",
+      "jest": "^29.7.0",
+      "ts-jest": "^29.3.1",
+      "typescript": "^5.6.3"
+    },
+    "dependencies": {
+      "zod": "^3.24.2"
+    }
+  } 
