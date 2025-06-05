@@ -8,13 +8,14 @@
     "files": [
       "dist"
     ],
-    "scripts": {
-      "build": "tsc",
-      "watch": "tsc -w", 
-      "test": "jest",
-      "test:watch": "jest --watch",
-      "clean": "rm -rf dist"
-    },
+      "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w", 
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "clean": "rm -rf dist"
+  },
     "keywords": [
       "frost",
       "bifrost", 

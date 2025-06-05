@@ -12,6 +12,7 @@ A TypeScript library providing core functionality for FROSTR/Bifrost distributed
 - ⚡ **Error Handling**: Structured error types with detailed context
 - 🔄 **Secret Recovery**: Secure threshold-based secret key reconstruction
 - 🎯 **Validation**: Built-in validation for all inputs using Zod schemas
+- 🔍 **Comprehensive Validation**: Advanced validation for Bifrost credentials, nostr keys, and relay URLs
 
 ## Installation
 
@@ -89,6 +90,14 @@ console.log('Generated keys:', {
 // Convert key formats
 const hexKey = await igloo.convertKey(nostrKeys.nsec, 'hex');
 const npubFromHex = await igloo.convertKey(hexKey, 'npub');
+
+// Validate credentials
+const validationResult = await igloo.validateCredentials({
+  group: keyset.groupCredential,
+  shares: keyset.shareCredentials,
+  relays: igloo.defaultRelays
+});
+console.log('Credentials valid:', validationResult.isValid);
 ```
 
 ## Core Functions
@@ -327,14 +336,125 @@ interface NodeEventConfig {
 
 ## Validation
 
-All inputs are validated using Zod schemas:
+The library provides comprehensive validation for all FROSTR/Bifrost components:
 
-- **KeysetParams**: Validates threshold and totalMembers
-- **RelayUrl**: Validates WebSocket URLs (must start with 'ws')
-- **SecretKey**: Validates non-empty secret keys
-- **NodeConfig**: Validates complete node configuration
-- **NostrKey**: Validates nostr key formats (nsec/npub)
-- **HexKey**: Validates 64-character hexadecimal keys
+### Individual Validation Functions
+
+```typescript
+import { 
+  validateNsec, 
+  validateHexPrivkey, 
+  validateShare, 
+  validateGroup, 
+  validateRelay,
+  validateBfcred,
+  VALIDATION_CONSTANTS
+} from '@igloo/core';
+
+// Validate nostr keys
+const nsecResult = validateNsec('nsec1...');
+console.log('Valid nsec:', nsecResult.isValid);
+
+const hexResult = validateHexPrivkey('67dea2ed018072d675f5415ecfaed7d2597555e202d85b3d65ea4e58d2d92ffa');
+console.log('Valid hex:', hexResult.isValid);
+
+// Validate Bifrost credentials
+const shareResult = validateShare('bfshare1...');
+const groupResult = validateGroup('bfgroup1...');
+const credResult = validateBfcred('bfcred1...');
+
+// Validate and normalize relay URLs
+const relayResult = validateRelay('relay.damus.io');
+console.log('Normalized:', relayResult.normalized); // 'wss://relay.damus.io'
+```
+
+### Batch Validation
+
+```typescript
+import { validateCredentialSet, validateRelayList } from '@igloo/core';
+
+// Validate complete credential sets
+const result = validateCredentialSet({
+  group: 'bfgroup1...',
+  shares: ['bfshare1...', 'bfshare1...'],
+  relays: ['wss://relay.damus.io', 'relay.primal.net']
+});
+
+console.log('All valid:', result.isValid);
+console.log('Errors:', result.errors);
+
+// Validate and normalize relay lists
+const relayListResult = validateRelayList([
+  'relay.damus.io',
+  'https://relay.primal.net/',
+  'wss://relay.snort.social'
+]);
+console.log('Normalized relays:', relayListResult.normalizedRelays);
+```
+
+### Advanced Validation Options
+
+```typescript
+import { validateWithOptions } from '@igloo/core';
+
+const validatedCreds = validateWithOptions(
+  {
+    group: 'bfgroup1...',
+    shares: ['bfshare1...'],
+    relays: ['relay.damus.io', 'https://relay.primal.net/']
+  },
+  {
+    normalizeRelays: true,      // Auto-normalize relay URLs
+    requireMinShares: 2,        // Enforce minimum share count
+    strict: true                // Strict format validation
+  }
+);
+
+console.log('Valid:', validatedCreds.isValid);
+console.log('Normalized relays:', validatedCreds.relays);
+```
+
+### Using IglooCore Validation Methods
+
+```typescript
+import { IglooCore } from '@igloo/core';
+
+const igloo = new IglooCore();
+
+// Validate individual credentials
+const shareValid = await igloo.validateCredential('bfshare1...', 'share');
+
+// Validate relay lists with normalization
+const relayResult = await igloo.validateRelays(['relay.damus.io']);
+
+// Validate complete credential sets
+const fullValidation = await igloo.validateCredentials({
+  group: 'bfgroup1...',
+  shares: ['bfshare1...'],
+  relays: ['relay.damus.io']
+});
+
+// Advanced validation with options
+const advanced = await igloo.validateWithOptions(credentials, {
+  normalizeRelays: true,
+  requireMinShares: 2
+});
+```
+
+### Validation Constants
+
+Access validation constants for custom validation logic:
+
+```typescript
+import { VALIDATION_CONSTANTS } from '@igloo/core';
+
+console.log('Share data size:', VALIDATION_CONSTANTS.SHARE_DATA_SIZE);
+console.log('Bifrost prefixes:', {
+  share: VALIDATION_CONSTANTS.BFSHARE_HRP,
+  group: VALIDATION_CONSTANTS.BFGROUP_HRP,
+  cred: VALIDATION_CONSTANTS.BFCRED_HRP
+});
+```
 
 ## Demo
 
@@ -393,6 +513,20 @@ export function validateKeysetParams(params: KeysetParams): void
 export function validateSecretKey(secretKey: string): void
 export function validateSharesCompatibility(shares: SharePackage[]): void
 
+// Comprehensive validation functions
+export function validateNsec(nsec: string): ValidationResult
+export function validateHexPrivkey(hexPrivkey: string): ValidationResult
+export function validateShare(share: string): ValidationResult
+export function validateGroup(group: string): ValidationResult
+export function validateRelay(relay: string): ValidationResult
+export function validateBfcred(cred: string): ValidationResult
+export function validateCredentialFormat(credential: string, type: 'share' | 'group' | 'cred'): ValidationResult
+export function validateRelayList(relays: string[]): RelayValidationResult
+export function validateCredentialSet(credentials: CredentialSet): CredentialSetValidationResult
+export function validateMinimumShares(shares: string[], requiredThreshold: number): ValidationResult
+export function validateWithOptions(credentials: BifrostCredentials, options?: ValidationOptions): ValidatedCredentials
+export const VALIDATION_CONSTANTS: ValidationConstants
+
 // Error classes
 export class IglooError extends Error
 export class KeysetError extends IglooError
@@ -400,6 +534,8 @@ export class NodeError extends IglooError
 export class EchoError extends IglooError
 export class RecoveryError extends IglooError
 export class NostrError extends IglooError
+export class BifrostValidationError extends IglooError
+export class NostrValidationError extends IglooError
 
 // All types and interfaces
 export * from './types'

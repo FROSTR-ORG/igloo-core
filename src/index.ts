@@ -46,6 +46,23 @@ export {
   validateNostrKey
 } from './nostr.js';
 
+// Export validation functions
+export {
+  validateNsec,
+  validateHexPrivkey,
+  validateShare,
+  validateGroup,
+  validateRelay,
+  validateBfcred,
+  validateCredentialFormat,
+  validateRelayList,
+  validateCredentialSet,
+  validateMinimumShares,
+  validateWithOptions,
+  VALIDATION_CONSTANTS,
+  type ValidationOptions
+} from './validation.js';
+
 // Export a convenience class for easier usage
 export class IglooCore {
   constructor(
@@ -146,22 +163,25 @@ export class IglooCore {
    * Convert between nostr key formats
    */
   async convertKey(key: string, targetFormat: 'hex' | 'nsec' | 'npub') {
-    const { nsecToHex, hexToNsec, hexToNpub, npubToHex } = await import('./nostr.js');
+    const { nsecToHex, hexToNsec, hexToNpub, npubToHex, validateHexKey, validateNostrKey } = await import('./nostr.js');
     
     if (key.startsWith('nsec')) {
+      validateNostrKey(key); // Validate before conversion
       switch (targetFormat) {
         case 'hex': return nsecToHex(key);
         case 'nsec': return key;
         case 'npub': throw new Error('Cannot convert private key to public key format directly');
       }
     } else if (key.startsWith('npub')) {
+      validateNostrKey(key); // Validate before conversion
       switch (targetFormat) {
         case 'hex': return npubToHex(key);
         case 'npub': return key;
         case 'nsec': throw new Error('Cannot convert public key to private key');
       }
     } else {
-      // Assume hex format
+      // Assume hex format - validate it
+      validateHexKey(key);
       switch (targetFormat) {
         case 'hex': return key;
         case 'nsec': return hexToNsec(key);
@@ -174,8 +194,55 @@ export class IglooCore {
    * Derive public key from private key
    */
   async derivePublicKey(privateKey: string) {
-    const { derivePublicKey } = await import('./nostr.js');
+    const { derivePublicKey, validateHexKey, validateNostrKey } = await import('./nostr.js');
+    
+    // Validate input before deriving
+    if (privateKey.startsWith('nsec')) {
+      validateNostrKey(privateKey);
+    } else {
+      validateHexKey(privateKey);
+    }
+    
     return derivePublicKey(privateKey);
+  }
+
+  /**
+   * Validate a credential set (group, shares, relays)
+   */
+  async validateCredentials(credentials: {
+    group: string;
+    shares: string[];
+    relays: string[];
+  }) {
+    const { validateCredentialSet } = await import('./validation.js');
+    return validateCredentialSet(credentials);
+  }
+
+  /**
+   * Validate and normalize relay URLs
+   */
+  async validateRelays(relays: string[]) {
+    const { validateRelayList } = await import('./validation.js');
+    return validateRelayList(relays);
+  }
+
+  /**
+   * Validate a single credential by type
+   */
+  async validateCredential(credential: string, type: 'share' | 'group' | 'cred') {
+    const { validateCredentialFormat } = await import('./validation.js');
+    return validateCredentialFormat(credential, type);
+  }
+
+  /**
+   * Validate credentials with advanced options
+   */
+  async validateWithOptions(
+    credentials: { group: string; shares: string[]; relays: string[] },
+    options: { strict?: boolean; normalizeRelays?: boolean; requireMinShares?: number } = {}
+  ) {
+    const { validateWithOptions } = await import('./validation.js');
+    return validateWithOptions(credentials, options);
   }
 }
 

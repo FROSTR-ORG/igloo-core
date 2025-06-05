@@ -14,7 +14,7 @@ import {
     KeysetError,
     EchoError,
     NodeError
-  } from './src/index.js';
+  } from '../src/index.js';
   
   // Example: Migrating the current generateKeysetWithSecret function
   export function migratedGenerateKeyset(threshold: number, totalMembers: number, secretKey: string) {

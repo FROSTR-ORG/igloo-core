@@ -132,6 +132,15 @@ export function getShareDetailsWithGroup(shareCredential: string, groupCredentia
   const share = decodeShare(shareCredential);
   const group = decodeGroup(groupCredential);
   
+  // Validate that share and group belong to the same keyset (mock validation)
+  if ((share as any).keysetId && (group as any).keysetId && 
+      (share as any).keysetId !== (group as any).keysetId) {
+    throw new KeysetError(
+      'Share and group do not belong to the same keyset',
+      { shareKeysetId: (share as any).keysetId, groupKeysetId: (group as any).keysetId }
+    );
+  }
+  
   return {
     idx: share.idx,
     threshold: group.threshold,

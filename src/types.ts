@@ -19,7 +19,10 @@ export const KeysetParamsSchema = z.object({
 
 export const RelayUrlSchema = z.string().url().startsWith('ws');
 
-export const SecretKeySchema = z.string().min(1, "Secret key cannot be empty");
+export const SecretKeySchema = z.string().regex(
+  /^[0-9a-fA-F]{64}$/,
+  "Invalid secret key format - must be 64 hexadecimal characters"
+);
 
 export const NodeConfigSchema = z.object({
   group: z.string(),
@@ -184,6 +187,45 @@ export class NostrError extends IglooError {
   constructor(message: string, details?: any) {
     super(message, 'NOSTR_ERROR', details);
     this.name = 'NostrError';
+  }
+}
+
+// Validation types
+export interface ValidationResult {
+  isValid: boolean;
+  message?: string;
+  normalized?: string;
+}
+
+export interface RelayValidationResult extends ValidationResult {
+  normalizedRelays?: string[];
+  validRelays?: string[];
+  errors?: string[];
+}
+
+export interface BifrostCredentials {
+  group: string;
+  shares: string[];
+  relays: string[];
+}
+
+export interface ValidatedCredentials extends BifrostCredentials {
+  isValid: boolean;
+  errors: string[];
+}
+
+// Validation error types
+export class BifrostValidationError extends IglooError {
+  constructor(message: string, public field?: string) {
+    super(message, 'BIFROST_VALIDATION_ERROR');
+    this.name = 'BifrostValidationError';
+  }
+}
+
+export class NostrValidationError extends IglooError {
+  constructor(message: string) {
+    super(message, 'NOSTR_VALIDATION_ERROR');
+    this.name = 'NostrValidationError';
   }
 }
 
