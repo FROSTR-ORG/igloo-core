@@ -1,4 +1,9 @@
-# @igloo/core
+# @frostr/igloo-core
+
+[![npm version](https://badge.fury.io/js/@frostr%2Figloo-core.svg)](https://badge.fury.io/js/@frostr%2Figloo-core)
+[![npm downloads](https://img.shields.io/npm/dm/@frostr/igloo-core.svg)](https://www.npmjs.com/package/@frostr/igloo-core)
+[![GitHub stars](https://img.shields.io/github/stars/FROSTR-ORG/igloo-core.svg)](https://github.com/FROSTR-ORG/igloo-core)
+[![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/FROSTR-ORG/igloo-core/blob/main/LICENSE)
 
 A TypeScript library providing core functionality for FROSTR/Bifrost distributed key management and remote signing. This library abstracts the complexity of threshold signatures and provides a clean, strongly-typed API for building secure distributed applications.
 
@@ -17,13 +22,21 @@ A TypeScript library providing core functionality for FROSTR/Bifrost distributed
 ## Installation
 
 ```bash
-npm install @igloo/core
+npm install @frostr/igloo-core
 ```
 
 ### Peer Dependencies
 
+This package requires the following peer dependencies:
+
 ```bash
 npm install @frostr/bifrost nostr-tools
+```
+
+Or install everything at once:
+
+```bash
+npm install @frostr/igloo-core @frostr/bifrost nostr-tools
 ```
 
 ## Quick Start
@@ -31,7 +44,7 @@ npm install @frostr/bifrost nostr-tools
 ### Basic Usage
 
 ```typescript
-import { igloo, generateKeysetWithSecret, recoverSecretKeyFromCredentials } from '@igloo/core';
+import { igloo, generateKeysetWithSecret, recoverSecretKeyFromCredentials } from '@frostr/igloo-core';
 
 // Generate a 2-of-3 keyset
 const keyset = generateKeysetWithSecret(2, 3, 'your-hex-secret-key');
@@ -53,7 +66,7 @@ console.log('Recovered secret:', recoveredSecret);
 ### Using the Convenience Class
 
 ```typescript
-import { IglooCore } from '@igloo/core';
+import { IglooCore } from '@frostr/igloo-core';
 
 const igloo = new IglooCore([
   'wss://relay.damus.io',
@@ -109,7 +122,7 @@ console.log('Credentials valid:', validationResult.isValid);
 Generates a new keyset from a secret key using Shamir's Secret Sharing.
 
 ```typescript
-import { generateKeysetWithSecret } from '@igloo/core';
+import { generateKeysetWithSecret } from '@frostr/igloo-core';
 
 const keyset = generateKeysetWithSecret(2, 3, 'your-hex-secret-key');
 // Returns: { groupCredential: string, shareCredentials: string[] }
@@ -120,7 +133,7 @@ const keyset = generateKeysetWithSecret(2, 3, 'your-hex-secret-key');
 Recovers the original secret key from threshold shares.
 
 ```typescript
-import { recoverSecretKeyFromCredentials } from '@igloo/core';
+import { recoverSecretKeyFromCredentials } from '@frostr/igloo-core';
 
 const nsec = recoverSecretKeyFromCredentials(
   groupCredential,
@@ -133,7 +146,7 @@ const nsec = recoverSecretKeyFromCredentials(
 Gets information about a share including index and threshold parameters.
 
 ```typescript
-import { getShareDetails } from '@igloo/core';
+import { getShareDetails } from '@frostr/igloo-core';
 
 const details = getShareDetails(shareCredential);
 console.log(`Share ${details.idx}: ${details.threshold}/${details.totalMembers}`);
@@ -146,7 +159,7 @@ console.log(`Share ${details.idx}: ${details.threshold}/${details.totalMembers}`
 Generates a new nostr key pair with both nsec/npub and hex formats.
 
 ```typescript
-import { generateNostrKeyPair } from '@igloo/core';
+import { generateNostrKeyPair } from '@frostr/igloo-core';
 
 const keyPair = generateNostrKeyPair();
 console.log({
@@ -162,7 +175,7 @@ console.log({
 Convert between nsec and hex formats for private keys.
 
 ```typescript
-import { nsecToHex, hexToNsec } from '@igloo/core';
+import { nsecToHex, hexToNsec } from '@frostr/igloo-core';
 
 const nsec = 'nsec1...';
 const hexPrivateKey = nsecToHex(nsec);
@@ -174,7 +187,7 @@ const backToNsec = hexToNsec(hexPrivateKey);
 Convert between npub and hex formats for public keys.
 
 ```typescript
-import { npubToHex, hexToNpub } from '@igloo/core';
+import { npubToHex, hexToNpub } from '@frostr/igloo-core';
 
 const npub = 'npub1...';
 const hexPublicKey = npubToHex(npub);
@@ -186,7 +199,7 @@ const backToNpub = hexToNpub(hexPublicKey);
 Derive the public key from a private key (supports both hex and nsec formats).
 
 ```typescript
-import { derivePublicKey } from '@igloo/core';
+import { derivePublicKey } from '@frostr/igloo-core';
 
 const publicKeyInfo = derivePublicKey('nsec1...' /* or hex */);
 console.log({
@@ -202,7 +215,7 @@ console.log({
 Creates and connects a BifrostNode with optional event configuration.
 
 ```typescript
-import { createAndConnectNode } from '@igloo/core';
+import { createAndConnectNode } from '@frostr/igloo-core';
 
 const node = await createAndConnectNode({
   group: groupCredential,
@@ -224,7 +237,7 @@ const node = await createAndConnectNode({
 Waits for an echo event on a specific share, useful for QR code transfers.
 
 ```typescript
-import { awaitShareEcho } from '@igloo/core';
+import { awaitShareEcho } from '@frostr/igloo-core';
 
 try {
   const received = await awaitShareEcho(
@@ -247,7 +260,7 @@ try {
 Starts listening for echo events on all shares in a keyset.
 
 ```typescript
-import { startListeningForAllEchoes } from '@igloo/core';
+import { startListeningForAllEchoes } from '@frostr/igloo-core';
 
 const listener = startListeningForAllEchoes(
   groupCredential,
@@ -276,7 +289,7 @@ import {
   EchoError, 
   RecoveryError,
   NostrError 
-} from '@igloo/core';
+} from '@frostr/igloo-core';
 
 try {
   const keyset = generateKeysetWithSecret(5, 3, 'key'); // Invalid: threshold > total
@@ -349,7 +362,7 @@ import {
   validateRelay,
   validateBfcred,
   VALIDATION_CONSTANTS
-} from '@igloo/core';
+} from '@frostr/igloo-core';
 
 // Validate nostr keys
 const nsecResult = validateNsec('nsec1...');
@@ -371,7 +384,7 @@ console.log('Normalized:', relayResult.normalized); // 'wss://relay.damus.io'
 ### Batch Validation
 
 ```typescript
-import { validateCredentialSet, validateRelayList } from '@igloo/core';
+import { validateCredentialSet, validateRelayList } from '@frostr/igloo-core';
 
 // Validate complete credential sets
 const result = validateCredentialSet({
@@ -395,7 +408,7 @@ console.log('Normalized relays:', relayListResult.normalizedRelays);
 ### Advanced Validation Options
 
 ```typescript
-import { validateWithOptions } from '@igloo/core';
+import { validateWithOptions } from '@frostr/igloo-core';
 
 const validatedCreds = validateWithOptions(
   {
@@ -417,7 +430,7 @@ console.log('Normalized relays:', validatedCreds.relays);
 ### Using IglooCore Validation Methods
 
 ```typescript
-import { IglooCore } from '@igloo/core';
+import { IglooCore } from '@frostr/igloo-core';
 
 const igloo = new IglooCore();
 
@@ -446,7 +459,7 @@ const advanced = await igloo.validateWithOptions(credentials, {
 Access validation constants for custom validation logic:
 
 ```typescript
-import { VALIDATION_CONSTANTS } from '@igloo/core';
+import { VALIDATION_CONSTANTS } from '@frostr/igloo-core';
 
 console.log('Share data size:', VALIDATION_CONSTANTS.SHARE_DATA_SIZE);
 console.log('Bifrost prefixes:', {
@@ -461,9 +474,17 @@ console.log('Bifrost prefixes:', {
 Run the included demo to see all functionality in action:
 
 ```bash
-cd packages/igloo-core
-npm run build
-node demo.js
+# Clone the repository to run the demo
+git clone https://github.com/FROSTR-ORG/igloo-core.git
+cd igloo-core
+npm install
+npm run demo
+```
+
+Or try it directly in your project:
+
+```bash
+npm install @frostr/igloo-core
 ```
 
 The demo showcases:
@@ -541,15 +562,64 @@ export class NostrValidationError extends IglooError
 export * from './types'
 ```
 
+## Changelog
+
+### 0.1.0 (2024-06-05)
+
+- 🎉 **Initial Release**: First stable version of `@frostr/igloo-core`
+- ✨ **Core Features**: Complete keyset management, node operations, and echo functionality
+- 🔐 **Nostr Integration**: Full nostr key management and format conversion utilities
+- 🛡️ **Comprehensive Validation**: Advanced validation for all FROSTR/Bifrost components
+- 📚 **TypeScript Support**: Full type definitions and strong typing throughout
+- 📖 **Documentation**: Comprehensive README with examples and API reference
+
 ## Contributing
 
-This is a demo package showing how bifrost functionality can be extracted into a reusable library. When split out into its own repository, it should include:
+We welcome contributions to `@frostr/igloo-core`! This library is actively maintained as part of the FROSTR ecosystem.
 
-- Comprehensive test suite
-- CI/CD pipeline
+### Development Setup
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/FROSTR-ORG/igloo-core.git
+   cd igloo-core
+   ```
+
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+3. Build the project:
+   ```bash
+   npm run build
+   ```
+
+4. Run tests:
+   ```bash
+   npm test
+   ```
+
+### Roadmap
+
+Future improvements include:
+- Comprehensive test suite expansion
+- CI/CD pipeline setup
 - Documentation website
-- Example applications
+- Additional example applications
 - Performance benchmarks
+- Browser compatibility testing
+
+### Submitting Changes
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests for new functionality
+5. Ensure all tests pass
+6. Submit a pull request
+
+For questions or discussions, please [open an issue](https://github.com/FROSTR-ORG/igloo-core/issues) or reach out to the FROSTR team.
 
 ## License
 

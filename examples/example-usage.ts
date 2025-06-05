@@ -1,5 +1,5 @@
 /**
- * Example showing how the main Igloo Desktop app could use @igloo/core
+ * Example showing how the main Igloo Desktop app could use @frostr/igloo-core
  * This demonstrates the migration path from the current bifrost.ts to the new library
  */
 
@@ -220,8 +220,8 @@ import {
   
   // Migration checklist for the main Igloo project:
   /*
-  1. Install @igloo/core as a dependency
-  2. Replace imports from './lib/bifrost' with '@igloo/core'
+  1. Install @frostr/igloo-core as a dependency
+  2. Replace imports from './lib/bifrost' with '@frostr/igloo-core'
   3. Update function calls to use the new API
   4. Replace manual error handling with structured error types
   5. Update event handling to use the new NodeEventConfig system

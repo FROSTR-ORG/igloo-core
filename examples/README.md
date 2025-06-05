@@ -1,6 +1,6 @@
 # Examples
 
-This directory contains examples and demonstrations of the @igloo/core library functionality.
+This directory contains examples and demonstrations of the @frostr/igloo-core library functionality.
 
 ## Files
 
@@ -18,7 +18,7 @@ node examples/demo.js
 ```
 
 ### `example-usage.ts`
-Migration examples showing how to update code from the current Igloo Desktop app to use @igloo/core:
+Migration examples showing how to update code from the current Igloo Desktop app to use @frostr/igloo-core:
 - Before/after code comparisons
 - Migration patterns and best practices
 - Example service class implementation

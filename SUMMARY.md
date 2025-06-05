@@ -2,7 +2,7 @@
 
 ## What Was Created
 
-I've successfully created `@igloo/core`, a TypeScript library that extracts and improves upon the bifrost functionality from your Igloo Desktop application. This library provides a clean, strongly-typed API for FROSTR/Bifrost distributed key management and remote signing.
+I've successfully created `@frostr/igloo-core`, a TypeScript library that extracts and improves upon the bifrost functionality from your Igloo Desktop application. This library provides a clean, strongly-typed API for FROSTR/Bifrost distributed key management and remote signing.
 
 ## Package Structure
 
@@ -55,7 +55,7 @@ packages/igloo-core/
 
 ### Basic Usage
 ```typescript
-import { generateKeysetWithSecret, recoverSecretKeyFromCredentials } from '@igloo/core';
+import { generateKeysetWithSecret, recoverSecretKeyFromCredentials } from '@frostr/igloo-core';
 
 // Generate 2-of-3 keyset
 const keyset = generateKeysetWithSecret(2, 3, 'your-hex-secret');
@@ -69,7 +69,7 @@ const recovered = recoverSecretKeyFromCredentials(
 
 ### Convenience Class
 ```typescript
-import { igloo } from '@igloo/core';
+import { igloo } from '@frostr/igloo-core';
 
 const keyset = await igloo.generateKeyset(2, 3, secretKey);
 const node = await igloo.createNode(keyset.groupCredential, keyset.shareCredentials[0]);
@@ -78,7 +78,7 @@ const confirmed = await igloo.waitForEcho(keyset.groupCredential, keyset.shareCr
 
 ### Echo Monitoring
 ```typescript
-import { startListeningForAllEchoes } from '@igloo/core';
+import { startListeningForAllEchoes } from '@frostr/igloo-core';
 
 const listener = startListeningForAllEchoes(
   groupCredential,
@@ -109,7 +109,7 @@ const groupCredential = PackageEncoder.group.encode(group);
 
 ### After (Using Igloo Core)
 ```typescript
-import { generateKeysetWithSecret, createAndConnectNode } from '@igloo/core';
+import { generateKeysetWithSecret, createAndConnectNode } from '@frostr/igloo-core';
 
 // Clean, validated API with built-in error handling
 const keyset = generateKeysetWithSecret(threshold, totalMembers, secretKey);
@@ -141,12 +141,12 @@ When you're ready to split this into its own repository:
 3. **Add Testing**: Comprehensive test suite with Jest
 4. **CI/CD**: GitHub Actions for testing and publishing
 5. **Documentation**: Dedicated docs site or expanded README
-6. **Publishing**: Publish to npm as `@igloo/core`
+6. **Publishing**: Publish to npm as `@frostr/igloo-core`
 7. **Examples**: Create example applications showing usage
 
 ### Migration Checklist for Igloo Desktop
-1. Install `@igloo/core` as dependency
-2. Replace imports from `./lib/bifrost` with `@igloo/core`
+1. Install `@frostr/igloo-core` as dependency
+2. Replace imports from `./lib/bifrost` with `@frostr/igloo-core`
 3. Update function calls to use new API (see `example-usage.ts`)
 4. Replace manual error handling with structured error types
 5. Update event handling to use `NodeEventConfig`
@@ -182,4 +182,4 @@ This structure makes the code maintainable, testable, and easy to extend.
 
 ## Conclusion
 
-The `@igloo/core` library successfully extracts and improves upon your existing bifrost functionality, providing a clean, type-safe, and reusable foundation for distributed key management. It's ready for immediate use and provides a clear path for future development and distribution. 
+The `@frostr/igloo-core` library successfully extracts and improves upon your existing bifrost functionality, providing a clean, type-safe, and reusable foundation for distributed key management. It's ready for immediate use and provides a clear path for future development and distribution. 
