@@ -34,6 +34,18 @@ export {
   DEFAULT_ECHO_RELAYS
 } from './echo.js';
 
+// Export nostr utilities
+export {
+  nsecToHex,
+  hexToNsec,
+  hexToNpub,
+  npubToHex,
+  generateNostrKeyPair,
+  derivePublicKey,
+  validateHexKey,
+  validateNostrKey
+} from './nostr.js';
+
 // Export a convenience class for easier usage
 export class IglooCore {
   constructor(
@@ -120,6 +132,50 @@ export class IglooCore {
   async getShareInfo(shareCredential: string) {
     const { getShareDetails } = await import('./keyset.js');
     return getShareDetails(shareCredential);
+  }
+
+  /**
+   * Generate a new nostr key pair
+   */
+  async generateKeys() {
+    const { generateNostrKeyPair } = await import('./nostr.js');
+    return generateNostrKeyPair();
+  }
+
+  /**
+   * Convert between nostr key formats
+   */
+  async convertKey(key: string, targetFormat: 'hex' | 'nsec' | 'npub') {
+    const { nsecToHex, hexToNsec, hexToNpub, npubToHex } = await import('./nostr.js');
+    
+    if (key.startsWith('nsec')) {
+      switch (targetFormat) {
+        case 'hex': return nsecToHex(key);
+        case 'nsec': return key;
+        case 'npub': throw new Error('Cannot convert private key to public key format directly');
+      }
+    } else if (key.startsWith('npub')) {
+      switch (targetFormat) {
+        case 'hex': return npubToHex(key);
+        case 'npub': return key;
+        case 'nsec': throw new Error('Cannot convert public key to private key');
+      }
+    } else {
+      // Assume hex format
+      switch (targetFormat) {
+        case 'hex': return key;
+        case 'nsec': return hexToNsec(key);
+        case 'npub': return hexToNpub(key);
+      }
+    }
+  }
+
+  /**
+   * Derive public key from private key
+   */
+  async derivePublicKey(privateKey: string) {
+    const { derivePublicKey } = await import('./nostr.js');
+    return derivePublicKey(privateKey);
   }
 }
 

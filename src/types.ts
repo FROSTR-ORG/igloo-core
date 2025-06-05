@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { nip19 } from 'nostr-tools';
 import type { 
   BifrostNode, 
   SignatureEntry, 
@@ -33,6 +34,24 @@ export const EchoListenerConfigSchema = z.object({
   timeout: z.number().int().positive().optional()
 });
 
+// Nostr validation schemas
+export const NostrKeySchema = z.string().refine(
+  (key) => {
+    try {
+      const { type } = nip19.decode(key);
+      return type === 'nsec' || type === 'npub';
+    } catch {
+      return false;
+    }
+  },
+  { message: "Invalid nostr key format" }
+);
+
+export const HexKeySchema = z.string().regex(
+  /^[0-9a-fA-F]{64}$/,
+  "Invalid hex key format - must be 64 hexadecimal characters"
+);
+
 // Core types
 export type KeysetParams = z.infer<typeof KeysetParamsSchema>;
 export type NodeConfig = z.infer<typeof NodeConfigSchema>;
@@ -51,6 +70,14 @@ export interface ShareDetailsWithGroup {
   idx: number;
   threshold: number;
   totalMembers: number;
+}
+
+// Nostr types
+export interface NostrKeyPair {
+  nsec: string;
+  npub: string;
+  hexPrivateKey: string;
+  hexPublicKey: string;
 }
 
 // Event types for BifrostNode
@@ -150,6 +177,13 @@ export class EchoError extends IglooError {
   constructor(message: string, details?: any) {
     super(message, 'ECHO_ERROR', details);
     this.name = 'EchoError';
+  }
+}
+
+export class NostrError extends IglooError {
+  constructor(message: string, details?: any) {
+    super(message, 'NOSTR_ERROR', details);
+    this.name = 'NostrError';
   }
 }
 

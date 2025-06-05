@@ -7,6 +7,7 @@ A TypeScript library providing core functionality for FROSTR/Bifrost distributed
 - 🔑 **Keyset Management**: Generate, decode, and manage threshold signature keysets
 - 🌐 **Node Management**: Create and manage BifrostNodes with comprehensive event handling
 - 📡 **Echo Functionality**: QR code transfers and share confirmation with visual feedback
+- 🔐 **Nostr Integration**: Complete nostr key management and format conversion utilities
 - 🛡️ **Strong Types**: Full TypeScript support with comprehensive type definitions
 - ⚡ **Error Handling**: Structured error types with detailed context
 - 🔄 **Secret Recovery**: Secure threshold-based secret key reconstruction
@@ -77,6 +78,17 @@ const confirmed = await igloo.waitForEcho(
 // Get share information
 const shareInfo = await igloo.getShareInfo(keyset.shareCredentials[0]);
 console.log(`Share ${shareInfo.idx}: ${shareInfo.threshold}/${shareInfo.totalMembers}`);
+
+// Generate nostr keys
+const nostrKeys = await igloo.generateKeys();
+console.log('Generated keys:', {
+  nsec: nostrKeys.nsec,
+  npub: nostrKeys.npub
+});
+
+// Convert key formats
+const hexKey = await igloo.convertKey(nostrKeys.nsec, 'hex');
+const npubFromHex = await igloo.convertKey(hexKey, 'npub');
 ```
 
 ## Core Functions
@@ -116,6 +128,62 @@ import { getShareDetails } from '@igloo/core';
 
 const details = getShareDetails(shareCredential);
 console.log(`Share ${details.idx}: ${details.threshold}/${details.totalMembers}`);
+```
+
+### Nostr Utilities
+
+#### `generateNostrKeyPair()`
+
+Generates a new nostr key pair with both nsec/npub and hex formats.
+
+```typescript
+import { generateNostrKeyPair } from '@igloo/core';
+
+const keyPair = generateNostrKeyPair();
+console.log({
+  nsec: keyPair.nsec,           // nostr secret key
+  npub: keyPair.npub,           // nostr public key
+  hexPrivateKey: keyPair.hexPrivateKey,  // hex private key
+  hexPublicKey: keyPair.hexPublicKey     // hex public key
+});
+```
+
+#### `nsecToHex(nsec)` / `hexToNsec(hex)`
+
+Convert between nsec and hex formats for private keys.
+
+```typescript
+import { nsecToHex, hexToNsec } from '@igloo/core';
+
+const nsec = 'nsec1...';
+const hexPrivateKey = nsecToHex(nsec);
+const backToNsec = hexToNsec(hexPrivateKey);
+```
+
+#### `npubToHex(npub)` / `hexToNpub(hex)`
+
+Convert between npub and hex formats for public keys.
+
+```typescript
+import { npubToHex, hexToNpub } from '@igloo/core';
+
+const npub = 'npub1...';
+const hexPublicKey = npubToHex(npub);
+const backToNpub = hexToNpub(hexPublicKey);
+```
+
+#### `derivePublicKey(privateKey)`
+
+Derive the public key from a private key (supports both hex and nsec formats).
+
+```typescript
+import { derivePublicKey } from '@igloo/core';
+
+const publicKeyInfo = derivePublicKey('nsec1...' /* or hex */);
+console.log({
+  npub: publicKeyInfo.npub,
+  hexPublicKey: publicKeyInfo.hexPublicKey
+});
 ```
 
 ### Node Management
@@ -197,7 +265,8 @@ import {
   KeysetError, 
   NodeError, 
   EchoError, 
-  RecoveryError 
+  RecoveryError,
+  NostrError 
 } from '@igloo/core';
 
 try {
@@ -225,6 +294,13 @@ interface ShareDetails {
   idx: number;
   threshold: number;
   totalMembers: number;
+}
+
+interface NostrKeyPair {
+  nsec: string;
+  npub: string;
+  hexPrivateKey: string;
+  hexPublicKey: string;
 }
 
 interface NodeConfig {
@@ -257,6 +333,8 @@ All inputs are validated using Zod schemas:
 - **RelayUrl**: Validates WebSocket URLs (must start with 'ws')
 - **SecretKey**: Validates non-empty secret keys
 - **NodeConfig**: Validates complete node configuration
+- **NostrKey**: Validates nostr key formats (nsec/npub)
+- **HexKey**: Validates 64-character hexadecimal keys
 
 ## Demo
 
@@ -300,6 +378,16 @@ export function closeNode(node: BifrostNode): void
 export function awaitShareEcho(groupCredential: string, shareCredential: string, options?: EchoOptions): Promise<boolean>
 export function startListeningForAllEchoes(groupCredential: string, shareCredentials: string[], callback: EchoReceivedCallback, options?: EchoOptions): EchoListener
 
+// Nostr functions
+export function generateNostrKeyPair(): NostrKeyPair
+export function nsecToHex(nsec: string): string
+export function hexToNsec(hex: string): string
+export function npubToHex(npub: string): string
+export function hexToNpub(hex: string): string
+export function derivePublicKey(privateKey: string): { npub: string; hexPublicKey: string }
+export function validateHexKey(hex: string, keyType?: 'private' | 'public'): void
+export function validateNostrKey(key: string, expectedType?: 'nsec' | 'npub'): void
+
 // Validation functions
 export function validateKeysetParams(params: KeysetParams): void
 export function validateSecretKey(secretKey: string): void
@@ -311,6 +399,7 @@ export class KeysetError extends IglooError
 export class NodeError extends IglooError
 export class EchoError extends IglooError
 export class RecoveryError extends IglooError
+export class NostrError extends IglooError
 
 // All types and interfaces
 export * from './types'
