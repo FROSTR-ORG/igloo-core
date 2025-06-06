@@ -469,6 +469,280 @@ console.log('Bifrost prefixes:', {
 });
 ```
 
+## Best Practices
+
+### ✅ Node Lifecycle & Events
+
+When using `createAndConnectNode()`, the Promise resolves when the node is ready and connected. The node is immediately ready for use:
+
+```typescript
+// ✅ Correct - Node is ready immediately after Promise resolves
+const node = await createAndConnectNode({ group, share, relays });
+setNodeReady(true); // Safe to set state immediately
+
+// Set up event listeners for future state changes
+node.on('closed', () => setNodeReady(false));
+node.on('error', () => setNodeReady(false));
+```
+
+**⚠️ Race Condition Warning**: The `'ready'` event may fire before your event listeners are attached. Always assume the node is ready when `createAndConnectNode()` resolves.
+
+```typescript
+// ❌ Avoid - May miss the ready event due to race condition
+const node = await createAndConnectNode({ group, share, relays });
+node.on('ready', () => setNodeReady(true)); // This may never fire!
+```
+
+### 🔧 React Integration Patterns
+
+#### Proper useEffect Usage
+
+```typescript
+// ✅ Correct - Only cleanup on unmount
+useEffect(() => {
+  return () => {
+    if (nodeRef.current) {
+      cleanupNode();
+    }
+  };
+}, []); // Empty dependency array prevents cleanup loops
+```
+
+```typescript
+// ❌ Wrong - Causes cleanup on every state change
+useEffect(() => {
+  return () => cleanupNode();
+}, [isRunning, isConnecting]); // Triggers cleanup unnecessarily
+```
+
+#### Complete Node Cleanup
+
+```typescript
+const cleanupNode = () => {
+  if (nodeRef.current) {
+    try {
+      // Remove all event listeners before disconnecting
+      nodeRef.current.off('ready');
+      nodeRef.current.off('closed');
+      nodeRef.current.off('error');
+      // ... remove other listeners
+      
+      // Disconnect the node
+      nodeRef.current.close();
+      nodeRef.current = null;
+    } catch (error) {
+      console.warn('Cleanup error:', error);
+    }
+  }
+};
+```
+
+#### Forwarding Controls with useImperativeHandle
+
+```typescript
+export interface SignerHandle {
+  stopSigner: () => Promise<void>;
+}
+
+const Signer = forwardRef<SignerHandle, SignerProps>(({ }, ref) => {
+  useImperativeHandle(ref, () => ({
+    stopSigner: async () => {
+      if (isSignerRunning) {
+        await handleStopSigner();
+      }
+    }
+  }));
+  
+  // ... component implementation
+});
+```
+
+### 🔍 Property Access Guidelines
+
+- **`node.client`**: Read-only property - do not attempt to modify
+- **Event Handlers**: Always remove event listeners before disconnecting
+- **State Management**: Set ready state immediately after `createAndConnectNode()` resolves
+
+### 🛠️ Error Handling Best Practices
+
+```typescript
+try {
+  const node = await createAndConnectNode({ group, share, relays });
+  
+  // Handle successful connection
+  setIsConnected(true);
+  
+  // Set up error handlers for runtime issues
+  node.on('error', (error) => {
+    console.error('Node error:', error);
+    setIsConnected(false);
+  });
+  
+} catch (error) {
+  // Handle connection failures
+  console.error('Failed to connect:', error);
+  setIsConnected(false);
+}
+```
+
+### 📋 Validation Best Practices
+
+Use comprehensive validation before creating nodes:
+
+```typescript
+import { validateShare, validateGroup, decodeShare, decodeGroup } from '@frostr/igloo-core';
+
+// Basic validation
+const shareValidation = validateShare(shareCredential);
+const groupValidation = validateGroup(groupCredential);
+
+if (!shareValidation.isValid || !groupValidation.isValid) {
+  throw new Error('Invalid credentials');
+}
+
+// Deep validation with decoding
+try {
+  const decodedShare = decodeShare(shareCredential);
+  const decodedGroup = decodeGroup(groupCredential);
+  
+  // Additional structure validation
+  if (typeof decodedShare.idx !== 'number' || 
+      typeof decodedGroup.threshold !== 'number') {
+    throw new Error('Invalid credential structure');
+  }
+} catch (error) {
+  throw new Error(`Credential validation failed: ${error.message}`);
+}
+```
+
+### 🎯 Complete React Signer Example
+
+Here's a complete example implementing all the best practices:
+
+```typescript
+import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
+import { 
+  createAndConnectNode, 
+  cleanupBifrostNode, 
+  isNodeReady,
+  validateShare, 
+  validateGroup 
+} from '@frostr/igloo-core';
+
+export interface SignerHandle {
+  stopSigner: () => Promise<void>;
+}
+
+interface SignerProps {
+  groupCredential: string;
+  shareCredential: string;
+  relays: string[];
+}
+
+const Signer = forwardRef<SignerHandle, SignerProps>(({ 
+  groupCredential, 
+  shareCredential, 
+  relays 
+}, ref) => {
+  const [isRunning, setIsRunning] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [error, setError] = useState<string>();
+  const nodeRef = useRef<any>(null);
+
+  // Cleanup on unmount only
+  useEffect(() => {
+    return () => {
+      if (nodeRef.current) {
+        cleanupBifrostNode(nodeRef.current);
+      }
+    };
+  }, []); // Empty dependency array is crucial
+
+  // Expose stop method to parent
+  useImperativeHandle(ref, () => ({
+    stopSigner: async () => {
+      if (isRunning) {
+        await handleStop();
+      }
+    }
+  }));
+
+  const handleStart = async () => {
+    try {
+      // Validate inputs first
+      const shareValid = validateShare(shareCredential);
+      const groupValid = validateGroup(groupCredential);
+      
+      if (!shareValid.isValid || !groupValid.isValid) {
+        throw new Error('Invalid credentials');
+      }
+
+      setIsConnecting(true);
+      setError(undefined);
+
+      // Create and connect node
+      const node = await createAndConnectNode({
+        group: groupCredential,
+        share: shareCredential,
+        relays
+      });
+
+      nodeRef.current = node;
+
+      // Node is ready immediately after Promise resolves
+      setIsRunning(true);
+      setIsConnecting(false);
+
+      // Set up listeners for future state changes
+      node.on('closed', () => {
+        setIsRunning(false);
+        setIsConnecting(false);
+      });
+
+      node.on('error', (error: any) => {
+        setError(error.message);
+        setIsRunning(false);
+        setIsConnecting(false);
+      });
+
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error');
+      setIsConnecting(false);
+      setIsRunning(false);
+    }
+  };
+
+  const handleStop = async () => {
+    try {
+      if (nodeRef.current) {
+        cleanupBifrostNode(nodeRef.current);
+        nodeRef.current = null;
+      }
+      setIsRunning(false);
+      setIsConnecting(false);
+      setError(undefined);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Cleanup error');
+    }
+  };
+
+  return (
+    <div>
+      <div>Status: {isRunning ? 'Running' : isConnecting ? 'Connecting...' : 'Stopped'}</div>
+      {error && <div>Error: {error}</div>}
+      <button 
+        onClick={isRunning ? handleStop : handleStart}
+        disabled={isConnecting}
+      >
+        {isRunning ? 'Stop' : isConnecting ? 'Connecting...' : 'Start'} Signer
+      </button>
+    </div>
+  );
+});
+
+export default Signer;
+```
+
 ## Demo
 
 Run the included demo to see all functionality in action:
@@ -512,8 +786,11 @@ export function decodeGroup(groupCredential: string): GroupPackage
 // Node functions
 export function createBifrostNode(config: NodeConfig, eventConfig?: NodeEventConfig): BifrostNode
 export function createAndConnectNode(config: NodeConfig, eventConfig?: NodeEventConfig): Promise<BifrostNode>
+export function createConnectedNode(config: EnhancedNodeConfig, eventConfig?: NodeEventConfig): Promise<NodeCreationResult>
 export function connectNode(node: BifrostNode): Promise<void>
 export function closeNode(node: BifrostNode): void
+export function isNodeReady(node: BifrostNode): boolean
+export function cleanupBifrostNode(node: BifrostNode): void
 
 // Echo functions
 export function awaitShareEcho(groupCredential: string, shareCredential: string, options?: EchoOptions): Promise<boolean>

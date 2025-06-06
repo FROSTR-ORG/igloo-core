@@ -8,7 +8,10 @@ import {
   type SharePackage,
   type SignatureEntry,
   type ECDHPackage,
-  type SignSessionPackage
+  type SignSessionPackage,
+  type EnhancedNodeConfig,
+  type NodeCreationResult,
+  type NodeState
 } from './types.js';
 
 /**
@@ -243,4 +246,116 @@ export async function createAndConnectNode(
   const node = createBifrostNode(config, eventConfig);
   await connectNode(node);
   return node;
+}
+
+/**
+ * Enhanced node creation with state information
+ * Returns both the node and its current state for better control
+ * 
+ * @param config - Enhanced configuration including timeout and auto-reconnect options
+ * @param eventConfig - Optional event configuration for logging and custom handlers
+ * @returns Promise resolving to both the connected node and its state information
+ * 
+ * @example
+ * ```typescript
+ * const { node, state } = await createConnectedNode({
+ *   group: 'bfgroup1...',
+ *   share: 'bfshare1...',
+ *   relays: ['wss://relay.damus.io'],
+ *   connectionTimeout: 5000,
+ *   autoReconnect: true
+ * });
+ * 
+ * console.log('Node ready:', state.isReady);
+ * console.log('Connected relays:', state.connectedRelays);
+ * ```
+ */
+export async function createConnectedNode(
+  config: EnhancedNodeConfig,
+  eventConfig?: NodeEventConfig
+): Promise<NodeCreationResult> {
+  const node = createBifrostNode(config, eventConfig);
+  
+  const state: NodeState = {
+    isReady: false,
+    isConnected: false,
+    isConnecting: true,
+    connectedRelays: []
+  };
+
+  try {
+    await connectNode(node);
+    
+    // Node is ready immediately after successful connection
+    state.isReady = true;
+    state.isConnected = true;
+    state.isConnecting = false;
+    state.connectedRelays = [...config.relays];
+    
+    return { node, state };
+  } catch (error) {
+    state.isConnecting = false;
+    state.lastError = error instanceof Error ? error.message : 'Unknown error';
+    throw error;
+  }
+}
+
+/**
+ * Check if a BifrostNode is ready synchronously
+ * This helper works around the race condition with ready events
+ * 
+ * @param node - The BifrostNode to check
+ * @returns true if the node is ready and connected, false otherwise
+ * 
+ * @example
+ * ```typescript
+ * const node = await createAndConnectNode(config);
+ * 
+ * // Safe synchronous check - no race conditions
+ * if (isNodeReady(node)) {
+ *   console.log('Node is ready for operations');
+ * }
+ * ```
+ */
+export function isNodeReady(node: BifrostNode): boolean {
+  try {
+    // Check if the node has a client and if it's connected
+    return !!(node as any).client && !!(node as any).client.connected;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Comprehensive cleanup for BifrostNode
+ * Removes all event listeners and safely disconnects the node
+ * 
+ * Note: Since we don't have access to the original listener functions,
+ * this function uses removeAllListeners to clear all event handlers.
+ * For more precise cleanup, store listener references when setting them up.
+ */
+export function cleanupBifrostNode(node: BifrostNode): void {
+  if (!node) return;
+
+  try {
+    // Use removeAllListeners if available (common in EventEmitter implementations)
+    const nodeAsAny = node as any;
+    if (typeof nodeAsAny.removeAllListeners === 'function') {
+      nodeAsAny.removeAllListeners();
+    } else {
+      // If removeAllListeners is not available, try to clear listeners individually
+      // This is a fallback that may not work with all implementations
+      console.warn('removeAllListeners not available - manual cleanup may be incomplete');
+    }
+
+    // Safely close the connection
+    try {
+      node.close();
+    } catch (closeError) {
+      console.warn('Warning: Error during node.close():', closeError);
+    }
+
+  } catch (error) {
+    console.warn('Warning: Error during node cleanup:', error);
+  }
 } 

@@ -23,6 +23,9 @@ export {
   connectNode,
   closeNode,
   createAndConnectNode,
+  createConnectedNode,
+  isNodeReady,
+  cleanupBifrostNode,
   type NodeEventConfig
 } from './node.js';
 
@@ -98,6 +101,40 @@ export class IglooCore {
       share: shareCredential,
       relays: relays || this.defaultRelays
     });
+  }
+
+  /**
+   * Create and connect a BifrostNode with enhanced state information
+   */
+  async createEnhancedNode(
+    groupCredential: string,
+    shareCredential: string,
+    relays?: string[],
+    options?: { connectionTimeout?: number; autoReconnect?: boolean }
+  ) {
+    const { createConnectedNode } = await import('./node.js');
+    return createConnectedNode({
+      group: groupCredential,
+      share: shareCredential,
+      relays: relays || this.defaultRelays,
+      ...options
+    });
+  }
+
+  /**
+   * Check if a BifrostNode is ready
+   */
+  async isNodeReady(node: any) {
+    const { isNodeReady } = await import('./node.js');
+    return isNodeReady(node);
+  }
+
+  /**
+   * Clean up a BifrostNode completely
+   */
+  async cleanupNode(node: any) {
+    const { cleanupBifrostNode } = await import('./node.js');
+    return cleanupBifrostNode(node);
   }
 
   /**

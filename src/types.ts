@@ -75,6 +75,29 @@ export interface ShareDetailsWithGroup {
   totalMembers: number;
 }
 
+// Enhanced node configuration
+export interface EnhancedNodeConfig extends NodeConfig {
+  /** Timeout for initial connection in milliseconds */
+  connectionTimeout?: number;
+  /** Whether to automatically reconnect on disconnection */
+  autoReconnect?: boolean;
+}
+
+// Node state information
+export interface NodeState {
+  isReady: boolean;
+  isConnected: boolean;
+  isConnecting: boolean;
+  lastError?: string;
+  connectedRelays: string[];
+}
+
+// Enhanced node result
+export interface NodeCreationResult {
+  node: BifrostNode;
+  state: NodeState;
+}
+
 // Nostr types
 export interface NostrKeyPair {
   nsec: string;
