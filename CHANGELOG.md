@@ -109,7 +109,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Breaking Changes Notice
 
-### 0.1.0 → 0.2.0
+### 0.1.0 → 0.1.1
 - **No Breaking Changes**: All existing APIs remain fully compatible
 - New features are additive and don't affect existing usage
 - Enhanced documentation provides clearer guidance for optimal usage patterns 
