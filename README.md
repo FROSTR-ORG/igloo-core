@@ -585,6 +585,36 @@ try {
 }
 ```
 
+### 🎯 Comprehensive Event Handling
+
+The library now provides complete coverage of all Bifrost node events, including:
+
+- **Base Events**: `ready`, `closed`, `message`, `bounced`, `error`, `info`, `debug`, and wildcard `*`
+- **ECDH Events**: All sender and handler events including return and error cases
+- **Signature Events**: Complete signing workflow event coverage
+- **Ping Events**: Full ping protocol including return and error handling
+- **Echo Events**: Complete echo functionality with return and error events
+
+```typescript
+// All events are automatically handled with proper logging
+const node = await createAndConnectNode({ group, share, relays }, {
+  enableLogging: true,
+  logLevel: 'debug', // See all events
+  customLogger: (level, message, data) => {
+    console.log(`[${level}] ${message}`, data);
+  }
+});
+
+// Or handle specific events manually
+node.on('/echo/sender/ret', (reason: string) => {
+  console.log('Echo operation completed:', reason);
+});
+
+node.on('/ping/sender/err', (reason: string, msg: any) => {
+  console.error('Ping failed:', reason, msg);
+});
+```
+
 ### 📋 Validation Best Practices
 
 Use comprehensive validation before creating nodes:
@@ -839,17 +869,6 @@ export class NostrValidationError extends IglooError
 export * from './types'
 ```
 
-## Changelog
-
-### 0.1.0 (2024-06-05)
-
-- 🎉 **Initial Release**: First stable version of `@frostr/igloo-core`
-- ✨ **Core Features**: Complete keyset management, node operations, and echo functionality
-- 🔐 **Nostr Integration**: Full nostr key management and format conversion utilities
-- 🛡️ **Comprehensive Validation**: Advanced validation for all FROSTR/Bifrost components
-- 📚 **TypeScript Support**: Full type definitions and strong typing throughout
-- 📖 **Documentation**: Comprehensive README with examples and API reference
-
 ## Contributing
 
 We welcome contributions to `@frostr/igloo-core`! This library is actively maintained as part of the FROSTR ecosystem.
@@ -876,16 +895,6 @@ We welcome contributions to `@frostr/igloo-core`! This library is actively maint
    ```bash
    npm test
    ```
-
-### Roadmap
-
-Future improvements include:
-- Comprehensive test suite expansion
-- CI/CD pipeline setup
-- Documentation website
-- Additional example applications
-- Performance benchmarks
-- Browser compatibility testing
 
 ### Submitting Changes
 

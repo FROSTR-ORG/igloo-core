@@ -70,13 +70,27 @@ export function setupNodeEvents(
     }
   };
 
+  // Wildcard event handler
+  node.on('*', (eventName: string, data: unknown) => {
+    log('debug', `Event emitted: ${eventName}`, data);
+  });
+
+  // Base logging events
+  node.on('info', (data: unknown) => {
+    log('info', 'Bifrost info', data);
+  });
+
+  node.on('debug', (data: unknown) => {
+    log('debug', 'Bifrost debug', data);
+  });
+
   // Base events
   node.on('ready', (node: BifrostNode) => {
     log('info', 'Bifrost node is ready', { nodeId: node.constructor.name });
   });
 
-  node.on('closed', () => {
-    log('info', 'Bifrost node connection closed');
+  node.on('closed', (node: BifrostNode) => {
+    log('info', 'Bifrost node connection closed', { nodeId: node.constructor.name });
   });
 
   node.on('message', (msg: any) => {
@@ -100,7 +114,7 @@ export function setupNodeEvents(
     log('debug', 'ECDH responses received', msgs);
   });
 
-  node.on('/ecdh/sender/rej', (reason: string, pkg: ECDHPackage) => {
+  node.on('/ecdh/sender/rej', (reason: string, pkg: any) => {
     log('warn', 'ECDH request rejected', { reason, package: pkg });
   });
 
@@ -133,11 +147,11 @@ export function setupNodeEvents(
     log('debug', 'Signature responses received', msgs);
   });
 
-  node.on('/sign/sender/rej', (reason: string, pkg: SignSessionPackage) => {
+  node.on('/sign/sender/rej', (reason: string, pkg: any) => {
     log('warn', 'Signature request rejected', { reason, package: pkg });
   });
 
-  node.on('/sign/sender/ret', (reason: string, msgs: SignatureEntry[]) => {
+  node.on('/sign/sender/ret', (reason: string, msgs: any[]) => {
     log('info', 'Signature shares aggregated', { reason, signatures: msgs });
   });
 
@@ -170,6 +184,10 @@ export function setupNodeEvents(
     log('warn', 'Ping rejection sent', { reason, message: msg });
   });
 
+  node.on('/ping/handler/ret', (reason: string, data: string) => {
+    log('info', 'Ping handler returned', { reason, data });
+  });
+
   node.on('/ping/sender/req', (msg: any) => {
     log('debug', 'Ping request sent', msg);
   });
@@ -180,6 +198,14 @@ export function setupNodeEvents(
 
   node.on('/ping/sender/rej', (reason: string, msg: any) => {
     log('warn', 'Ping request rejected', { reason, message: msg });
+  });
+
+  node.on('/ping/sender/ret', (config: any) => {
+    log('info', 'Ping sender returned peer config', config);
+  });
+
+  node.on('/ping/sender/err', (reason: string, msg: any) => {
+    log('error', 'Ping sender error', { reason, message: msg });
   });
 
   // Echo events
@@ -205,6 +231,14 @@ export function setupNodeEvents(
 
   node.on('/echo/sender/rej', (reason: string, msg: any) => {
     log('warn', 'Echo request rejected', { reason, message: msg });
+  });
+
+  node.on('/echo/sender/ret', (reason: string) => {
+    log('info', 'Echo sender returned', { reason });
+  });
+
+  node.on('/echo/sender/err', (reason: string, msg: any) => {
+    log('error', 'Echo sender error', { reason, message: msg });
   });
 }
 

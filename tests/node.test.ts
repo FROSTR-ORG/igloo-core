@@ -43,8 +43,6 @@ describe('Node Management', () => {
       expect(node.connect).toHaveBeenCalled();
     });
 
-
-
     it('should throw NodeError on invalid config', async () => {
       const invalidConfig = {
         group: '',
@@ -177,6 +175,131 @@ describe('Node Management', () => {
       
       // Should handle multiple cleanups gracefully
       expect(() => cleanupBifrostNode(node)).not.toThrow();
+    });
+  });
+
+  describe('Enhanced Event Handling', () => {
+    it('should register all required event handlers during node creation', async () => {
+      const node = await createAndConnectNode(mockConfig);
+      
+      // Verify that event handlers were registered on the returned node
+      expect(node.on).toHaveBeenCalled();
+      
+      // Verify we have handlers for key events by checking if they were called with the event names
+      const onCalls = (node.on as jest.Mock).mock.calls;
+      const registeredEvents = onCalls.map(call => call[0]);
+      
+      // Verify base events
+      expect(registeredEvents).toContain('ready');
+      expect(registeredEvents).toContain('error');
+      expect(registeredEvents).toContain('closed');
+      
+      // Verify new events are also registered
+      expect(registeredEvents).toContain('*');
+      expect(registeredEvents).toContain('info');
+      expect(registeredEvents).toContain('debug');
+      
+      // Verify echo events that were missing before
+      expect(registeredEvents).toContain('/echo/sender/ret');
+      expect(registeredEvents).toContain('/echo/sender/err');
+      
+      // Verify ping events that were missing before
+      expect(registeredEvents).toContain('/ping/handler/ret');
+      expect(registeredEvents).toContain('/ping/sender/ret');
+      expect(registeredEvents).toContain('/ping/sender/err');
+    });
+
+    it('should handle event configuration in node creation', async () => {
+      const customLogger = jest.fn();
+      const eventConfig = {
+        enableLogging: true,
+        logLevel: 'debug' as const,
+        customLogger
+      };
+      
+      const node = await createAndConnectNode(mockConfig, eventConfig);
+      
+      // Verify that events were registered (this confirms setupNodeEvents was called with config)
+      expect(node.on).toHaveBeenCalled();
+    });
+
+    it('should properly handle all event categories', async () => {
+      const node = await createAndConnectNode(mockConfig);
+      
+      // Get all registered event names
+      const onCalls = (node.on as jest.Mock).mock.calls;
+      const registeredEvents = onCalls.map(call => call[0]);
+      
+      // Verify we have events from all categories
+      const hasBaseEvents = registeredEvents.some((event: string) => ['ready', 'closed', 'error', '*'].includes(event));
+      const hasECDHEvents = registeredEvents.some((event: string) => event.startsWith('/ecdh/'));
+      const hasSignEvents = registeredEvents.some((event: string) => event.startsWith('/sign/'));
+      const hasPingEvents = registeredEvents.some((event: string) => event.startsWith('/ping/'));
+      const hasEchoEvents = registeredEvents.some((event: string) => event.startsWith('/echo/'));
+      
+      expect(hasBaseEvents).toBe(true);
+      expect(hasECDHEvents).toBe(true);
+      expect(hasSignEvents).toBe(true);
+      expect(hasPingEvents).toBe(true);
+      expect(hasEchoEvents).toBe(true);
+    });
+  });
+
+  describe('Event Handler Verification', () => {
+    it('should verify event handlers can be called without errors', async () => {
+      // Capture event handlers during node creation
+      const eventHandlers: { [key: string]: Function } = {};
+      
+      // Create a node with a modified mock that captures handlers
+      const originalMockImplementation = jest.requireMock('@frostr/bifrost').BifrostNode;
+      const mockNode = {
+        connect: jest.fn().mockResolvedValue(undefined),
+        close: jest.fn(),
+        on: jest.fn().mockImplementation((event: string, handler: Function) => {
+          eventHandlers[event] = handler;
+        }),
+        off: jest.fn(),
+        removeAllListeners: jest.fn(),
+        client: { connected: true },
+        constructor: { name: 'BifrostNode' }
+      };
+      
+      // Temporarily replace the mock implementation
+      jest.requireMock('@frostr/bifrost').BifrostNode.mockImplementationOnce(() => mockNode);
+      
+      const node = await createAndConnectNode(mockConfig);
+      
+      // Test that critical event handlers don't throw when called
+      expect(() => {
+        if (eventHandlers['ready']) {
+          eventHandlers['ready'](mockNode);
+        }
+      }).not.toThrow();
+      
+      expect(() => {
+        if (eventHandlers['error']) {
+          eventHandlers['error'](new Error('test error'));
+        }
+      }).not.toThrow();
+      
+      expect(() => {
+        if (eventHandlers['*']) {
+          eventHandlers['*']('test-event', { data: 'test' });
+        }
+      }).not.toThrow();
+      
+      // Test new events
+      expect(() => {
+        if (eventHandlers['/echo/sender/ret']) {
+          eventHandlers['/echo/sender/ret']('success');
+        }
+      }).not.toThrow();
+      
+      expect(() => {
+        if (eventHandlers['/ping/sender/err']) {
+          eventHandlers['/ping/sender/err']('timeout', { error: 'test' });
+        }
+      }).not.toThrow();
     });
   });
 

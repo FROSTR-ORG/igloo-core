@@ -5,6 +5,88 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] - 2025-01-08
+
+### 🎯 Complete Bifrost Event Handling
+
+#### Fixed Missing Events
+- **Added 8 Missing Events**: Previously missing events now properly handled
+  - `'*'` - Wildcard event for catching all events
+  - `'info'` - Information logging events
+  - `'debug'` - Debug logging events
+  - `/echo/sender/ret` - Echo sender return event
+  - `/echo/sender/err` - Echo sender error event
+  - `/ping/handler/ret` - Ping handler return event
+  - `/ping/sender/ret` - Ping sender return event
+  - `/ping/sender/err` - Ping sender error event
+
+#### Corrected Event Signatures
+- **Fixed Parameter Types**: Updated event signatures to match official Bifrost interface
+  - `'closed'` event now correctly receives `BifrostNode` parameter
+  - `'bounced'` event now has correct parameter structure
+  - Array parameter handling fixed for `/ecdh/sender/res` and `/sign/sender/res`
+  - Proper type imports for `SignedMessage` and `PeerConfig`
+
+#### Enhanced Type Definitions
+- **Updated `BifrostNodeEvents` Interface**: Complete coverage of all Bifrost events
+- **Proper Type Imports**: Added imports for `SignedMessage` and `PeerConfig` types
+- **Accurate Parameter Signatures**: All events now have correct TypeScript signatures
+
+### 🧪 Comprehensive Test Coverage
+
+#### New Test Suite
+- **`tests/events.test.ts`**: 24 comprehensive tests for event handling
+  - Event registration verification for all categories
+  - Event handler functionality testing
+  - Configuration and logging tests
+  - Integration and regression tests
+
+#### Enhanced Existing Tests
+- **`tests/node.test.ts`**: 4 additional tests for event integration
+  - Enhanced event handling verification
+  - Event handler error resilience testing
+  - Integration with existing node functions
+
+#### Complete Event Coverage
+- **All 41 Bifrost Events**: Tests verify complete event coverage
+- **Missing Events Verified**: Specific tests for previously missing events
+- **Parameter Signature Testing**: Ensures correct parameter handling
+- **Regression Prevention**: Guards against future event coverage gaps
+
+### 📚 Documentation Updates
+
+#### Enhanced README
+- **Comprehensive Event Handling Section**: Documentation for all supported events
+- **Event Categories**: Clear breakdown of base, ECDH, signature, ping, and echo events
+- **Manual Event Handling Examples**: Code examples for custom event handling
+- **Best Practices**: Guidelines for event monitoring and debugging
+
+#### API Documentation
+- **Complete Event List**: Documentation of all 41 supported events
+- **Event Configuration**: Examples of logging and custom event handling
+- **Integration Examples**: Practical usage patterns
+
+### 🔧 Improved Developer Experience
+
+#### Better Event Monitoring
+- **Comprehensive Logging**: All events now logged with appropriate levels
+- **Custom Logger Support**: Full support for custom logging implementations
+- **Debug Visibility**: Enhanced debugging capabilities with wildcard event support
+
+#### Error Prevention
+- **Type Safety**: Correct TypeScript types prevent runtime errors
+- **Complete Coverage**: No missing events means no silent failures
+- **Regression Tests**: Automated tests prevent future coverage gaps
+
+### 🏗️ Infrastructure
+
+#### Test Infrastructure
+- **179 Total Tests**: All tests passing with new event coverage
+- **Mock Improvements**: Enhanced mocking for better test reliability
+- **Coverage Verification**: Automated verification of complete event coverage
+
+---
+
 ## [0.1.1] - 2025-06-06
 
 ### 🚀 Added

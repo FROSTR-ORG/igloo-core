@@ -106,50 +106,72 @@ export interface NostrKeyPair {
   hexPublicKey: string;
 }
 
-// Event types for BifrostNode
+// Re-export types from bifrost for convenience
+export type {
+  BifrostNode,
+  SignatureEntry,
+  ECDHPackage,
+  SignSessionPackage,
+  GroupPackage,
+  SharePackage
+} from '@frostr/bifrost';
+
+// Import SignedMessage type for proper event signatures
+import type { SignedMessage } from '@cmdcode/nostr-p2p';
+import type { PeerConfig } from '@frostr/bifrost';
+
+// Event types for BifrostNode - Updated to match official Bifrost interface
 export interface BifrostNodeEvents {
-  // Base events
-  'ready': (node: BifrostNode) => void;
-  'closed': () => void;
-  'message': (msg: any) => void;
-  'bounced': (reason: string, msg: any) => void;
+  // Wildcard and base events
+  '*': (eventName: string, data: unknown) => void;
+  'info': (data: unknown) => void;
+  'debug': (data: unknown) => void;
   'error': (error: unknown) => void;
+  'ready': (node: BifrostNode) => void;
+  'closed': (node: BifrostNode) => void;
+  'bounced': (reason: string, msg: SignedMessage) => void;
+  'message': (msg: SignedMessage) => void;
 
   // ECDH events
-  '/ecdh/sender/req': (msg: any) => void;
-  '/ecdh/sender/res': (...msgs: any[]) => void;
+  '/ecdh/sender/req': (msg: SignedMessage) => void;
+  '/ecdh/sender/res': (msgs: SignedMessage[]) => void;
   '/ecdh/sender/rej': (reason: string, pkg: ECDHPackage) => void;
   '/ecdh/sender/ret': (reason: string, pkgs: string) => void;
-  '/ecdh/sender/err': (reason: string, msgs: any[]) => void;
-  '/ecdh/handler/req': (msg: any) => void;
-  '/ecdh/handler/res': (msg: any) => void;
-  '/ecdh/handler/rej': (reason: string, msg: any) => void;
+  '/ecdh/sender/err': (reason: string, msgs: SignedMessage[]) => void;
+  '/ecdh/handler/req': (msg: SignedMessage) => void;
+  '/ecdh/handler/res': (msg: SignedMessage) => void;
+  '/ecdh/handler/rej': (reason: string, msg: SignedMessage) => void;
 
   // Signature events
-  '/sign/sender/req': (msg: any) => void;
-  '/sign/sender/res': (...msgs: any[]) => void;
+  '/sign/sender/req': (msg: SignedMessage) => void;
+  '/sign/sender/res': (msgs: SignedMessage[]) => void;
   '/sign/sender/rej': (reason: string, pkg: SignSessionPackage) => void;
   '/sign/sender/ret': (reason: string, msgs: SignatureEntry[]) => void;
-  '/sign/sender/err': (reason: string, msgs: any[]) => void;
-  '/sign/handler/req': (msg: any) => void;
-  '/sign/handler/res': (msg: any) => void;
-  '/sign/handler/rej': (reason: string, msg: any) => void;
+  '/sign/sender/err': (reason: string, msgs: SignedMessage[]) => void;
+  '/sign/handler/req': (msg: SignedMessage) => void;
+  '/sign/handler/res': (msg: SignedMessage) => void;
+  '/sign/handler/rej': (reason: string, msg: SignedMessage) => void;
 
   // Ping events
-  '/ping/handler/req': (msg: any) => void;
-  '/ping/handler/res': (msg: any) => void;
-  '/ping/handler/rej': (reason: string, msg: any) => void;
-  '/ping/sender/req': (msg: any) => void;
-  '/ping/sender/res': (msg: any) => void;
-  '/ping/sender/rej': (reason: string, msg: any) => void;
+  '/ping/handler/req': (msg: SignedMessage) => void;
+  '/ping/handler/res': (msg: SignedMessage) => void;
+  '/ping/handler/rej': (reason: string, msg: SignedMessage) => void;
+  '/ping/handler/ret': (reason: string, data: string) => void;
+  '/ping/sender/req': (msg: SignedMessage) => void;
+  '/ping/sender/res': (msg: SignedMessage) => void;
+  '/ping/sender/rej': (reason: string, msg: SignedMessage | null) => void;
+  '/ping/sender/ret': (config: PeerConfig) => void;
+  '/ping/sender/err': (reason: string, msg: SignedMessage) => void;
 
   // Echo events
-  '/echo/handler/req': (msg: any) => void;
-  '/echo/handler/res': (msg: any) => void;
-  '/echo/handler/rej': (reason: string, msg: any) => void;
-  '/echo/sender/req': (msg: any) => void;
-  '/echo/sender/res': (msg: any) => void;
-  '/echo/sender/rej': (reason: string, msg: any) => void;
+  '/echo/handler/req': (msg: SignedMessage) => void;
+  '/echo/handler/res': (msg: SignedMessage) => void;
+  '/echo/handler/rej': (reason: string, msg: SignedMessage) => void;
+  '/echo/sender/req': (msg: SignedMessage) => void;
+  '/echo/sender/res': (msg: SignedMessage) => void;
+  '/echo/sender/rej': (reason: string, msg: SignedMessage | null) => void;
+  '/echo/sender/ret': (reason: string) => void;
+  '/echo/sender/err': (reason: string, msg: SignedMessage) => void;
 }
 
 // Echo listener types
@@ -250,14 +272,4 @@ export class NostrValidationError extends IglooError {
     super(message, 'NOSTR_VALIDATION_ERROR');
     this.name = 'NostrValidationError';
   }
-}
-
-// Re-export types from bifrost for convenience
-export type {
-  BifrostNode,
-  SignatureEntry,
-  ECDHPackage,
-  SignSessionPackage,
-  GroupPackage,
-  SharePackage
-} from '@frostr/bifrost'; 
+} 
