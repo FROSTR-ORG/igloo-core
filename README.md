@@ -1076,27 +1076,42 @@ interface EnhancedPeerMonitorConfig {
   fallbackMode?: 'static' | 'disabled'; // Fallback behavior
   onPeerStatusChange?: (peer: Peer) => void;  // Status change callback
   onError?: (error: Error, context: string) => void; // Error callback
+  enableLogging?: boolean;        // Enable internal logging (default: false)
+  suppressWarnings?: boolean;     // Suppress expected warnings (default: false)
+  customLogger?: (level: 'info' | 'warn' | 'error' | 'debug', message: string, data?: any) => void; // Custom logger
 }
 
-// Production configuration - always provides peer list
+// Production configuration - always provides peer list with clean logging
 const productionConfig = {
   fallbackMode: 'static',
+  suppressWarnings: true,         // Suppress expected fallback warnings
+  customLogger: (level, message, data) => {
+    // Send to your monitoring service instead of console
+    monitoringService.log(level, message, data);
+  },
   onError: (error, context) => {
     logToMonitoringService(`Peer ${context}`, error);
   }
 };
 
-// Development configuration - fail fast for debugging
+// Development configuration - fail fast for debugging with verbose logging
 const strictConfig = {
   fallbackMode: 'disabled',
-  autoMonitor: false
+  autoMonitor: false,
+  enableLogging: true,
+  suppressWarnings: false        // Show all warnings during development
 };
 
-// High-frequency monitoring
+// High-frequency monitoring with controlled logging
 const quickConfig = {
   pingInterval: 10000,    // Ping every 10 seconds
   pingTimeout: 2000,      // 2 second timeout
-  fallbackMode: 'static'
+  fallbackMode: 'static',
+  suppressWarnings: true, // Avoid log spam in production
+  customLogger: (level, message) => {
+    if (level === 'error') console.error(message);
+    // Only log errors, suppress info/debug
+  }
 };
 ```
 
@@ -1181,9 +1196,52 @@ peerStatus.forEach(peer => {
 });
 ```
 
+### 🔧 Pubkey Utility Functions
+
+The library provides comprehensive pubkey handling utilities to eliminate the need for manual normalization throughout your application:
+
+```typescript
+import { 
+  normalizePubkey, 
+  addPubkeyPrefix, 
+  comparePubkeys, 
+  extractSelfPubkeyFromCredentials 
+} from '@frostr/igloo-core';
+
+// Normalize pubkeys (remove 02/03 prefix if present)
+const normalizedPubkey = normalizePubkey('02abcd1234...'); // Returns 'abcd1234...'
+const alreadyNormalized = normalizePubkey('abcd1234...'); // Returns 'abcd1234...' (unchanged)
+
+// Add prefix to pubkeys (convert to compressed format)
+const withPrefix = addPubkeyPrefix('abcd1234...'); // Returns '02abcd1234...'
+const withCustomPrefix = addPubkeyPrefix('abcd1234...', '03'); // Returns '03abcd1234...'
+const alreadyPrefixed = addPubkeyPrefix('02abcd1234...'); // Returns '02abcd1234...' (unchanged)
+
+// Compare pubkeys after normalization (handles mixed formats)
+const isMatch = comparePubkeys('02abcd1234...', 'abcd1234...'); // Returns true
+const notMatch = comparePubkeys('02abcd1234...', '03efgh5678...'); // Returns false
+
+// Extract self pubkey from credentials with comprehensive error handling
+const result = extractSelfPubkeyFromCredentials(groupCredential, shareCredential, {
+  normalize: true,        // Remove prefix (default: true)
+  suppressWarnings: false // Show warnings (default: false)
+});
+
+if (result.pubkey) {
+  console.log('Self pubkey:', result.pubkey);
+} else {
+  console.log('Could not extract self pubkey');
+}
+
+// Handle warnings gracefully
+if (result.warnings.length > 0) {
+  result.warnings.forEach(warning => console.warn('⚠️', warning));
+}
+```
+
 ### 🎯 Integrated with IglooCore
 
-The convenience class provides seamless peer management integration:
+The convenience class provides seamless peer management integration including all pubkey utilities:
 
 ```typescript
 const igloo = new IglooCore();
@@ -1215,6 +1273,15 @@ if (result.success) {
 const peers = await igloo.extractPeers(groupCredential, shareCredential);
 const onlinePeers = await igloo.pingPeers(node);
 const detailedStatus = await igloo.checkPeerStatus(node, groupCredential, shareCredential);
+
+// Use pubkey utilities through IglooCore
+const normalized = igloo.normalizePubkey('02abcd1234...');
+const withPrefix = igloo.addPubkeyPrefix('abcd1234...');
+const isMatch = igloo.comparePubkeys('02abcd1234...', 'abcd1234...');
+const selfPubkey = igloo.extractSelfPubkey(groupCredential, shareCredential, {
+  normalize: true,
+  suppressWarnings: false
+});
 ```
 
 ### 📊 Real-Time Status Monitoring
@@ -1264,6 +1331,69 @@ if (peerManager.isPeerOnline(importantPeer)) {
   console.log(`✅ Critical peer ${importantPeer} is online`);
 } else {
   console.warn(`⚠️ Critical peer ${importantPeer} is offline`);
+}
+```
+
+### 🔕 Warning Management and Professional Logging
+
+The library provides comprehensive warning management to eliminate the need for global console overrides in production applications:
+
+```typescript
+import { createPeerManagerRobust } from '@frostr/igloo-core';
+
+// Production setup with clean logging
+const result = await createPeerManagerRobust(node, groupCredential, shareCredential, {
+  fallbackMode: 'static',
+  suppressWarnings: true,  // Suppress expected warnings like "falling back to static mode"
+  customLogger: (level, message, data) => {
+    // Professional logging instead of console spam
+    switch (level) {
+      case 'error':
+        logger.error(message, data);
+        break;
+      case 'warn':
+        if (!message.includes('falling back')) { // Custom filtering
+          logger.warn(message, data);
+        }
+        break;
+      case 'info':
+        logger.info(message, data);
+        break;
+      case 'debug':
+        if (process.env.NODE_ENV === 'development') {
+          logger.debug(message, data);
+        }
+        break;
+    }
+  },
+  onError: (error, context) => {
+    // Handle errors without console.warn spam
+    logger.error(`Peer management error in ${context}`, { error: error.message });
+  }
+});
+
+// No more need for global console.warn overrides!
+// The library handles all warning management internally
+```
+
+#### Alternative: Selective Warning Suppression
+
+For more granular control, you can suppress specific warnings while keeping others:
+
+```typescript
+// Extract self pubkey without warnings
+const { pubkey, warnings } = extractSelfPubkeyFromCredentials(
+  groupCredential, 
+  shareCredential, 
+  { suppressWarnings: true }
+);
+
+// Handle warnings programmatically instead of console spam
+if (warnings.length > 0 && shouldShowWarnings) {
+  warnings.forEach(warning => {
+    // Send to your logging service
+    analyticsService.track('peer_warning', { warning });
+  });
 }
 ```
 
@@ -1735,6 +1865,72 @@ These examples demonstrate real-world usage patterns with:
 - Complete error handling and graceful degradation
 - Production-ready patterns and best practices
 
+## Client Integration Benefits
+
+The recent enhancements eliminate common client-side workarounds and provide production-ready patterns:
+
+### ❌ Before: Client Workarounds Required
+
+```typescript
+// Clients previously needed these workarounds:
+
+// 1. Global console override to suppress warnings
+const originalWarn = console.warn;
+console.warn = (...args) => {
+  if (args[0]?.includes?.('falling back to static peer list')) return;
+  originalWarn(...args);
+};
+
+// 2. Manual pubkey normalization everywhere
+function normalizePubkey(pubkey) {
+  return pubkey.startsWith('02') || pubkey.startsWith('03') 
+    ? pubkey.slice(2) : pubkey;
+}
+
+// 3. Complex self pubkey extraction with extensive error handling
+function extractSelfPubkey(groupCredential, shareCredential) {
+  try {
+    const decodedShare = decodeShare(shareCredential);
+    const decodedGroup = decodeGroup(groupCredential);
+    // ... 20+ lines of error handling and extraction logic
+  } catch (error) {
+    // Complex fallback logic
+  }
+}
+```
+
+### ✅ After: Built-in Solutions
+
+```typescript
+// Now everything is handled by the library:
+
+// 1. Professional warning management (no global overrides needed)
+const result = await createPeerManagerRobust(node, groupCredential, shareCredential, {
+  suppressWarnings: true,  // Clean, configurable suppression
+  customLogger: yourLogger // Professional logging integration
+});
+
+// 2. Automatic pubkey normalization throughout
+const isMatch = comparePubkeys('02abcd...', 'abcd...'); // Just works!
+
+// 3. Enhanced self pubkey extraction with built-in error handling
+const { pubkey, warnings } = extractSelfPubkeyFromCredentials(
+  groupCredential, 
+  shareCredential, 
+  { suppressWarnings: true }
+);
+// Warnings are returned for programmatic handling, not console spam
+```
+
+### 🚀 Production Benefits
+
+- **No more global console overrides** - Clean, configurable warning management
+- **No more manual pubkey normalization** - Automatic handling throughout the library
+- **No more complex extraction logic** - Built-in utilities with comprehensive error handling
+- **Professional logging integration** - Custom logger support for monitoring services
+- **Memory leak prevention** - Automatic cleanup of event listeners
+- **Graceful degradation** - Fallback modes ensure applications remain functional
+
 ## Complete Example - Peer Management
 
 Here's a comprehensive example showing peer management in a real application:
@@ -1980,6 +2176,12 @@ export function extractPeersFromCredentials(groupCredential: string, shareCreden
 export function pingPeers(node: BifrostNode, timeout?: number): Promise<string[]> // Legacy compatibility function
 export function checkPeerStatus(node: BifrostNode, groupCredential: string, shareCredential: string): Promise<{ pubkey: string; status: 'online' | 'offline' }[]>
 export const DEFAULT_PEER_MONITOR_CONFIG: PeerMonitorConfig
+
+// Pubkey utility functions
+export function normalizePubkey(pubkey: string): string
+export function addPubkeyPrefix(pubkey: string, prefix?: '02' | '03'): string
+export function comparePubkeys(pubkey1: string, pubkey2: string): boolean
+export function extractSelfPubkeyFromCredentials(groupCredential: string, shareCredential: string, options?: { normalize?: boolean; suppressWarnings?: boolean }): { pubkey: string | null; warnings: string[] }
 
 // Validation functions
 export function validateKeysetParams(params: KeysetParams): void

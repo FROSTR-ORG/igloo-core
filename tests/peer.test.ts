@@ -353,7 +353,79 @@ describe('Peer Management', () => {
         pingTimeout: 5000,
         autoMonitor: true,
         enableLogging: false,
+        suppressWarnings: false,
         onPeerStatusChange: undefined
+      });
+    });
+  });
+
+  describe('Pubkey Utility Functions', () => {
+    describe('normalizePubkey', () => {
+      it('should remove 02 prefix from compressed pubkey', () => {
+        const { normalizePubkey } = require('../src/peer.js');
+        const compressed = '02abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890';
+        const expected = 'abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890';
+        expect(normalizePubkey(compressed)).toBe(expected);
+      });
+
+      it('should remove 03 prefix from compressed pubkey', () => {
+        const { normalizePubkey } = require('../src/peer.js');
+        const compressed = '03abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890';
+        const expected = 'abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890';
+        expect(normalizePubkey(compressed)).toBe(expected);
+      });
+
+      it('should return uncompressed pubkey unchanged', () => {
+        const { normalizePubkey } = require('../src/peer.js');
+        const uncompressed = 'abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890';
+        expect(normalizePubkey(uncompressed)).toBe(uncompressed);
+      });
+    });
+
+    describe('addPubkeyPrefix', () => {
+      it('should add 02 prefix to uncompressed pubkey', () => {
+        const { addPubkeyPrefix } = require('../src/peer.js');
+        const uncompressed = 'abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890';
+        const expected = '02abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890';
+        expect(addPubkeyPrefix(uncompressed)).toBe(expected);
+      });
+
+      it('should return compressed pubkey unchanged', () => {
+        const { addPubkeyPrefix } = require('../src/peer.js');
+        const compressed = '02abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890';
+        expect(addPubkeyPrefix(compressed)).toBe(compressed);
+      });
+    });
+
+    describe('comparePubkeys', () => {
+      it('should compare normalized pubkeys correctly', () => {
+        const { comparePubkeys } = require('../src/peer.js');
+        const compressed = '02abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890';
+        const uncompressed = 'abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890';
+        expect(comparePubkeys(compressed, uncompressed)).toBe(true);
+      });
+
+      it('should return false for different pubkeys', () => {
+        const { comparePubkeys } = require('../src/peer.js');
+        const pubkey1 = '02abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890';
+        const pubkey2 = '03fedcba0987654321fedcba0987654321fedcba0987654321fedcba0987654321';
+        expect(comparePubkeys(pubkey1, pubkey2)).toBe(false);
+      });
+    });
+
+    describe('extractSelfPubkeyFromCredentials', () => {
+      it('should handle missing credentials gracefully', () => {
+        const { extractSelfPubkeyFromCredentials } = require('../src/peer.js');
+        const result = extractSelfPubkeyFromCredentials('', '', { suppressWarnings: true });
+        expect(result.pubkey).toBeNull();
+        expect(result.warnings).toEqual([]);
+      });
+
+      it('should return warnings when suppressWarnings is false', () => {
+        const { extractSelfPubkeyFromCredentials } = require('../src/peer.js');
+        const result = extractSelfPubkeyFromCredentials('', '', { suppressWarnings: false });
+        expect(result.pubkey).toBeNull();
+        expect(result.warnings.length).toBeGreaterThan(0);
       });
     });
   });

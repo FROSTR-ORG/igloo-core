@@ -92,6 +92,11 @@ export {
   pingPeers,
   checkPeerStatus,
   DEFAULT_PEER_MONITOR_CONFIG,
+  // Pubkey utility functions
+  normalizePubkey,
+  addPubkeyPrefix,
+  comparePubkeys,
+  extractSelfPubkeyFromCredentials,
   type Peer,
   type PeerMonitorConfig,
   type EnhancedPeerMonitorConfig,
@@ -428,6 +433,44 @@ export class IglooCore {
       relays: this.defaultRelays,
       ...options
     });
+  }
+
+  // Pubkey Utility Methods
+
+  /**
+   * Normalize a pubkey by removing 02/03 prefix if present
+   */
+  normalizePubkey(pubkey: string): string {
+    const { normalizePubkey } = require('./peer.js');
+    return normalizePubkey(pubkey);
+  }
+
+  /**
+   * Add prefix to a pubkey if missing
+   */
+  addPubkeyPrefix(pubkey: string, prefix: '02' | '03' = '02'): string {
+    const { addPubkeyPrefix } = require('./peer.js');
+    return addPubkeyPrefix(pubkey, prefix);
+  }
+
+  /**
+   * Compare two pubkeys after normalization
+   */
+  comparePubkeys(pubkey1: string, pubkey2: string): boolean {
+    const { comparePubkeys } = require('./peer.js');
+    return comparePubkeys(pubkey1, pubkey2);
+  }
+
+  /**
+   * Extract self pubkey from credentials with enhanced error handling
+   */
+  extractSelfPubkey(
+    groupCredential: string, 
+    shareCredential: string,
+    options?: { normalize?: boolean; suppressWarnings?: boolean }
+  ) {
+    const { extractSelfPubkeyFromCredentials } = require('./peer.js');
+    return extractSelfPubkeyFromCredentials(groupCredential, shareCredential, options);
   }
 }
 

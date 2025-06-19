@@ -17,6 +17,107 @@ import {
 } from './ping.js';
 
 /**
+ * Utility functions for pubkey handling
+ */
+
+/**
+ * Normalize a pubkey by removing 02/03 prefix if present
+ */
+export function normalizePubkey(pubkey: string): string {
+  if (!pubkey || typeof pubkey !== 'string') {
+    return pubkey;
+  }
+  
+  // Remove 02 or 03 prefix if present (33-byte compressed format -> 32-byte)
+  if ((pubkey.startsWith('02') || pubkey.startsWith('03')) && pubkey.length === 66) {
+    return pubkey.slice(2);
+  }
+  
+  return pubkey;
+}
+
+/**
+ * Add 02 prefix to a pubkey if it's missing (convert to compressed format)
+ */
+export function addPubkeyPrefix(pubkey: string, prefix: '02' | '03' = '02'): string {
+  if (!pubkey || typeof pubkey !== 'string') {
+    return pubkey;
+  }
+  
+  // If already has prefix, return as-is
+  if ((pubkey.startsWith('02') || pubkey.startsWith('03')) && pubkey.length === 66) {
+    return pubkey;
+  }
+  
+  // If 64 characters (32 bytes), add prefix
+  if (pubkey.length === 64) {
+    return prefix + pubkey;
+  }
+  
+  return pubkey;
+}
+
+/**
+ * Compare two pubkeys after normalization
+ */
+export function comparePubkeys(pubkey1: string, pubkey2: string): boolean {
+  return normalizePubkey(pubkey1) === normalizePubkey(pubkey2);
+}
+
+/**
+ * Extract self pubkey from credentials with enhanced error handling
+ */
+export function extractSelfPubkeyFromCredentials(
+  groupCredential: string, 
+  shareCredential: string,
+  options: { normalize?: boolean; suppressWarnings?: boolean } = {}
+): { pubkey: string | null; warnings: string[] } {
+  const warnings: string[] = [];
+  const { normalize = true, suppressWarnings = false } = options;
+  
+  try {
+    if (!shareCredential || !groupCredential) {
+      const warning = 'Missing credentials for self pubkey extraction';
+      if (!suppressWarnings) warnings.push(warning);
+      return { pubkey: null, warnings };
+    }
+
+    const decodedShare = decodeShare(shareCredential);
+    const decodedGroup = decodeGroup(groupCredential);
+    
+    if (!decodedShare?.idx || !decodedGroup?.commits) {
+      const warning = 'Invalid credential structure for self pubkey extraction';
+      if (!suppressWarnings) warnings.push(warning);
+      return { pubkey: null, warnings };
+    }
+
+    const shareIndex = decodedShare.idx - 1; // Convert to 0-based index
+    if (shareIndex < 0 || shareIndex >= decodedGroup.commits.length) {
+      const warning = 'Share index out of range for self pubkey extraction';
+      if (!suppressWarnings) warnings.push(warning);
+      return { pubkey: null, warnings };
+    }
+
+    const selfPubkeyCommit = decodedGroup.commits[shareIndex];
+    // Handle both string and CommitPackage types
+    const selfPubkey = typeof selfPubkeyCommit === 'string' ? selfPubkeyCommit : (selfPubkeyCommit as any).pubkey;
+    
+    if (!selfPubkey) {
+      const warning = 'Could not extract self public key from credentials';
+      if (!suppressWarnings) warnings.push(warning);
+      return { pubkey: null, warnings };
+    }
+    
+    const result = normalize ? normalizePubkey(selfPubkey) : selfPubkey;
+    return { pubkey: result, warnings };
+  } catch (error) {
+    const warning = `Failed to extract self pubkey: ${error instanceof Error ? error.message : 'Unknown error'}`;
+    if (!suppressWarnings) warnings.push(warning);
+    return { pubkey: null, warnings };
+  }
+}
+
+/**
  * Represents a peer in the FROSTR network
  */
 export interface Peer {
@@ -55,6 +156,10 @@ export interface PeerMonitorConfig {
   onError?: (error: Error, context: string) => void;
   /** Enable logging */
   enableLogging?: boolean;
+  /** Suppress expected warnings (fallback messages, etc.) */
+  suppressWarnings?: boolean;
+  /** Custom logger function */
+  customLogger?: (level: 'info' | 'warn' | 'error' | 'debug', message: string, data?: any) => void;
 }
 
 /**
@@ -65,6 +170,7 @@ export const DEFAULT_PEER_MONITOR_CONFIG: PeerMonitorConfig = {
   pingTimeout: DEFAULT_PING_TIMEOUT,
   autoMonitor: true,
   enableLogging: false,
+  suppressWarnings: false,
   onPeerStatusChange: undefined
 };
 
@@ -124,16 +230,18 @@ export interface EnhancedPeerMonitorConfig extends PeerMonitorConfig {
 export class StaticPeerManager {
   private peers: Peer[];
   private warnings: string[];
+  private config: Partial<PeerMonitorConfig>;
 
-  constructor(peerPubkeys: string[], warnings: string[] = []) {
+  constructor(peerPubkeys: string[], warnings: string[] = [], config: Partial<PeerMonitorConfig> = {}) {
     this.peers = peerPubkeys.map(pubkey => ({
-      pubkey,
+      pubkey: normalizePubkey(pubkey), // Normalize pubkeys automatically
       status: 'unknown' as const,
       lastSeen: undefined,
       allowSend: true,
       allowReceive: true
     }));
     this.warnings = warnings;
+    this.config = { ...DEFAULT_PEER_MONITOR_CONFIG, ...config };
   }
 
   getPeerStatus(): PeerMonitorResult {
@@ -197,10 +305,19 @@ export class StaticPeerManager {
     this.warnings = [];
   }
 
-  private log(level: string, message: string): void {
-    const logMethod = (console as any)[level];
-    if (typeof logMethod === 'function') {
-      logMethod(`[StaticPeerManager] ${message}`);
+  private log(level: 'info' | 'warn' | 'error' | 'debug', message: string, data?: any): void {
+    // Skip warnings if suppressed
+    if (level === 'warn' && this.config.suppressWarnings) {
+      return;
+    }
+    
+    if (this.config.customLogger) {
+      this.config.customLogger(level, `[StaticPeerManager] ${message}`, data);
+    } else if (this.config.enableLogging) {
+      const logFn = level === 'error' ? console.error : 
+                   level === 'warn' ? console.warn :
+                   level === 'debug' ? console.debug : console.log;
+      logFn(`[StaticPeerManager] [${level.toUpperCase()}] ${message}`, data || '');
     }
   }
 }
@@ -241,9 +358,12 @@ export class PeerManager {
     if (!msg || typeof msg !== 'object') {
       return;
     }
-    const peerPubkey = msg.pub || msg.pubkey;
-    if (peerPubkey && this.peers.has(peerPubkey)) {
-      this.updatePeerStatus(peerPubkey, 'online');
+    const peerPubkey = msg.pub || msg.pubkey || msg.from;
+    if (peerPubkey) {
+      const normalizedPubkey = normalizePubkey(peerPubkey);
+      if (this.peers.has(normalizedPubkey)) {
+        this.updatePeerStatus(normalizedPubkey, 'online');
+      }
     }
   }
 
@@ -251,9 +371,12 @@ export class PeerManager {
    * Handle ping responses to mark peers as online
    */
   private handlePingResponse(msg: any): void {
-    const peerPubkey = msg.pub || msg.pubkey;
-    if (peerPubkey && this.peers.has(peerPubkey)) {
-      this.updatePeerStatus(peerPubkey, 'online');
+    const peerPubkey = msg.pub || msg.pubkey || msg.from;
+    if (peerPubkey) {
+      const normalizedPubkey = normalizePubkey(peerPubkey);
+      if (this.peers.has(normalizedPubkey)) {
+        this.updatePeerStatus(normalizedPubkey, 'online');
+      }
     }
   }
 
@@ -295,8 +418,9 @@ export class PeerManager {
     this.peers.clear();
     
     peerPubkeys.forEach(pubkey => {
-      this.peers.set(pubkey, {
-        pubkey,
+      const normalizedPubkey = normalizePubkey(pubkey);
+      this.peers.set(normalizedPubkey, {
+        pubkey: normalizedPubkey,
         status: 'unknown',
         lastSeen: undefined,
         allowSend: true,
@@ -311,7 +435,8 @@ export class PeerManager {
    * Update the status of a specific peer (public for backward compatibility)
    */
   public updatePeerStatus(pubkey: string, status: 'online' | 'offline' | 'unknown'): void {
-    const peer = this.peers.get(pubkey);
+    const normalizedPubkey = normalizePubkey(pubkey);
+    const peer = this.peers.get(normalizedPubkey);
     if (!peer) return;
 
     const oldStatus = peer.status;
@@ -328,7 +453,8 @@ export class PeerManager {
    * Update the status of a specific peer from ping result
    */
   private updatePeerFromPingResult(result: PingResult): void {
-    const peer = this.peers.get(result.pubkey);
+    const normalizedPubkey = normalizePubkey(result.pubkey);
+    const peer = this.peers.get(normalizedPubkey);
     if (!peer) return;
 
     const oldStatus = peer.status;
@@ -574,12 +700,19 @@ export class PeerManager {
   /**
    * Internal logging
    */
-  private log(level: string, message: string): void {
-    if (this.config.enableLogging) {
-      const logMethod = (console as any)[level];
-      if (typeof logMethod === 'function') {
-        logMethod(`[PeerManager] ${message}`);
-      }
+  private log(level: 'info' | 'warn' | 'error' | 'debug', message: string, data?: any): void {
+    // Skip warnings if suppressed
+    if (level === 'warn' && this.config.suppressWarnings) {
+      return;
+    }
+    
+    if (this.config.customLogger) {
+      this.config.customLogger(level, `[PeerManager] ${message}`, data);
+    } else if (this.config.enableLogging) {
+      const logFn = level === 'error' ? console.error : 
+                   level === 'warn' ? console.warn :
+                   level === 'debug' ? console.debug : console.log;
+      logFn(`[PeerManager] [${level.toUpperCase()}] ${message}`, data || '');
     }
   }
 }
@@ -873,7 +1006,14 @@ export async function createPeerManagerRobust(
   const enhancedConfig = { ...DEFAULT_PEER_MONITOR_CONFIG, ...config };
 
   try {
-    // Step 1: Validate credentials
+    // Step 1: Try enhanced self pubkey extraction first
+    const selfPubkeyResult = extractSelfPubkeyFromCredentials(
+      groupCredential, 
+      shareCredential,
+      { normalize: true, suppressWarnings: enhancedConfig.suppressWarnings }
+    );
+
+    // Step 2: Validate credentials
     const validation = await validatePeerCredentials(groupCredential, shareCredential);
 
     if (!validation.isValid) {
@@ -882,15 +1022,15 @@ export async function createPeerManagerRobust(
         try {
           const basicPeers = extractBasicPeers(groupCredential, shareCredential);
           const staticManager = new StaticPeerManager(basicPeers, [
-            `Live monitoring disabled: ${validation.error}`,
-            'Using static peer list as fallback'
-          ]);
+            ...(enhancedConfig.suppressWarnings ? [] : [`Live monitoring disabled: ${validation.error}`]),
+            ...(enhancedConfig.suppressWarnings ? [] : ['Using static peer list as fallback'])
+          ], enhancedConfig);
           
           return {
             success: true,
             peerManager: staticManager,
             mode: 'static',
-            warnings: [
+            warnings: enhancedConfig.suppressWarnings ? [] : [
               `Peer monitoring disabled: ${validation.error}`,
               'Fallback to static peer list enabled'
             ]
@@ -911,15 +1051,19 @@ export async function createPeerManagerRobust(
       }
     }
 
-    // Step 2: Create full peer manager
+    // Step 3: Create full peer manager
     try {
-      const peerManager = new PeerManager(node, validation.selfPubkey!, {
+      // Use enhanced self pubkey if available, otherwise fall back to validation result
+      const selfPubkey = selfPubkeyResult.pubkey || validation.selfPubkey!;
+      
+      const peerManager = new PeerManager(node, selfPubkey, {
         ...enhancedConfig,
         autoMonitor: false // Disable auto-monitor initially for safer initialization
       });
 
-      // Initialize peers manually
-      peerManager.initializePeersFromList(validation.peers);
+      // Initialize peers manually (normalize them automatically)
+      const normalizedPeers = validation.peers.map(pubkey => normalizePubkey(pubkey));
+      peerManager.initializePeersFromList(normalizedPeers);
 
       // Start monitoring if requested (after initialization)
       if (enhancedConfig.autoMonitor) {
@@ -932,16 +1076,16 @@ export async function createPeerManagerRobust(
           
           if (enhancedConfig.fallbackMode === 'static') {
             // Fall back to static mode if monitoring fails
-            const staticManager = new StaticPeerManager(validation.peers, [
-              `Live monitoring failed: ${monitorError instanceof Error ? monitorError.message : 'Unknown error'}`,
-              'Switched to static peer list mode'
-            ]);
+            const staticManager = new StaticPeerManager(normalizedPeers, [
+              ...(enhancedConfig.suppressWarnings ? [] : [`Live monitoring failed: ${monitorError instanceof Error ? monitorError.message : 'Unknown error'}`]),
+              ...(enhancedConfig.suppressWarnings ? [] : ['Switched to static peer list mode'])
+            ], enhancedConfig);
             
             return {
               success: true,
               peerManager: staticManager,
               mode: 'static',
-              warnings: [
+              warnings: enhancedConfig.suppressWarnings ? [] : [
                 `Monitoring initialization failed, using static mode`,
                 ...(validation.warnings || [])
               ]
@@ -956,7 +1100,10 @@ export async function createPeerManagerRobust(
         success: true,
         peerManager,
         mode: 'full',
-        warnings: validation.warnings
+        warnings: enhancedConfig.suppressWarnings ? [] : [
+          ...selfPubkeyResult.warnings,
+          ...(validation.warnings || [])
+        ]
       };
 
     } catch (managerError) {
@@ -966,16 +1113,17 @@ export async function createPeerManagerRobust(
 
       if (enhancedConfig.fallbackMode === 'static') {
         // Fall back to static manager
-        const staticManager = new StaticPeerManager(validation.peers, [
-          `PeerManager creation failed: ${managerError instanceof Error ? managerError.message : 'Unknown error'}`,
-          'Using static peer list as fallback'
-        ]);
+        const normalizedPeers = validation.peers.map(pubkey => normalizePubkey(pubkey));
+        const staticManager = new StaticPeerManager(normalizedPeers, [
+          ...(enhancedConfig.suppressWarnings ? [] : [`PeerManager creation failed: ${managerError instanceof Error ? managerError.message : 'Unknown error'}`]),
+          ...(enhancedConfig.suppressWarnings ? [] : ['Using static peer list as fallback'])
+        ], enhancedConfig);
         
         return {
           success: true,
           peerManager: staticManager,
           mode: 'static',
-          warnings: [
+          warnings: enhancedConfig.suppressWarnings ? [] : [
             `Full peer manager creation failed, using static mode`,
             ...(validation.warnings || [])
           ]
