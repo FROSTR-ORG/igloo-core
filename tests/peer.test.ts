@@ -42,6 +42,7 @@ jest.mock('@frostr/bifrost', () => {
       })
     },
     on: jest.fn(),
+    off: jest.fn(), // Add off method for better testing of our memory leak fix
     removeListener: jest.fn(),
     removeAllListeners: jest.fn(),
     close: jest.fn()
@@ -233,6 +234,48 @@ describe('Peer Management', () => {
       
       peerManager.cleanup();
       expect(peerManager.getAllPeers()).toHaveLength(0);
+    });
+
+    it('should remove event listeners during cleanup', () => {
+      peerManager.initializePeers('group_cred', 'share_cred');
+      
+      // Verify event listeners were added during initialization
+      expect(mockNode.on).toHaveBeenCalledWith('message', expect.any(Function));
+      expect(mockNode.on).toHaveBeenCalledWith('/ping/sender/res', expect.any(Function));
+      
+      // Clear the mock to check cleanup calls
+      mockNode.on.mockClear();
+      mockNode.off.mockClear();
+      
+      peerManager.cleanup();
+      
+      // Verify event listeners were removed during cleanup
+      expect(mockNode.off).toHaveBeenCalledWith('message', expect.any(Function));
+      expect(mockNode.off).toHaveBeenCalledWith('/ping/sender/res', expect.any(Function));
+    });
+
+    it('should use fallback cleanup methods when off is not available', () => {
+      // Create a peer manager with a node that doesn't have 'off' method
+      const nodeWithoutOff = {
+        ...mockNode,
+        off: undefined
+      };
+      
+      const fallbackPeerManager = new PeerManager(nodeWithoutOff, 'self_pubkey', {
+        autoMonitor: false
+      });
+      createdPeerManagers.push(fallbackPeerManager);
+      
+      fallbackPeerManager.initializePeers('group_cred', 'share_cred');
+      
+      // Clear mocks
+      nodeWithoutOff.removeListener.mockClear();
+      
+      fallbackPeerManager.cleanup();
+      
+      // Verify fallback removeListener was called
+      expect(nodeWithoutOff.removeListener).toHaveBeenCalledWith('message', expect.any(Function));
+      expect(nodeWithoutOff.removeListener).toHaveBeenCalledWith('/ping/sender/res', expect.any(Function));
     });
 
     it('should get peer status summary', () => {

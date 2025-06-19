@@ -214,6 +214,8 @@ export class PeerManager {
   private config: PeerMonitorConfig;
   private node: BifrostNode;
   private selfPubkey: string;
+  private messageHandler: (msg: any) => void;
+  private pingResponseHandler: (msg: any) => void;
 
   constructor(
     node: BifrostNode,
@@ -224,8 +226,35 @@ export class PeerManager {
     this.selfPubkey = selfPubkey;
     this.config = { ...DEFAULT_PEER_MONITOR_CONFIG, ...config };
     
+    // Create bound event handler functions
+    this.messageHandler = this.handleMessage.bind(this);
+    this.pingResponseHandler = this.handlePingResponse.bind(this);
+    
     // Set up event listeners for backward compatibility
     this.setupEventListeners();
+  }
+
+  /**
+   * Handle incoming messages to mark peers as online
+   */
+  private handleMessage(msg: any): void {
+    if (!msg || typeof msg !== 'object') {
+      return;
+    }
+    const peerPubkey = msg.pub || msg.pubkey;
+    if (peerPubkey && this.peers.has(peerPubkey)) {
+      this.updatePeerStatus(peerPubkey, 'online');
+    }
+  }
+
+  /**
+   * Handle ping responses to mark peers as online
+   */
+  private handlePingResponse(msg: any): void {
+    const peerPubkey = msg.pub || msg.pubkey;
+    if (peerPubkey && this.peers.has(peerPubkey)) {
+      this.updatePeerStatus(peerPubkey, 'online');
+    }
   }
 
   /**
@@ -233,23 +262,10 @@ export class PeerManager {
    */
   private setupEventListeners(): void {
     // Listen for any incoming messages to mark peers as online
-    this.node.on('message', (msg: any) => {
-      if (!msg || typeof msg !== 'object') {
-        return;
-      }
-      const peerPubkey = msg.pub || msg.pubkey;
-      if (peerPubkey && this.peers.has(peerPubkey)) {
-        this.updatePeerStatus(peerPubkey, 'online');
-      }
-    });
+    this.node.on('message', this.messageHandler);
 
     // Listen for ping responses
-    this.node.on('/ping/sender/res', (msg: any) => {
-      const peerPubkey = msg.pub || msg.pubkey;
-      if (peerPubkey && this.peers.has(peerPubkey)) {
-        this.updatePeerStatus(peerPubkey, 'online');
-      }
-    });
+    this.node.on('/ping/sender/res', this.pingResponseHandler);
   }
 
   /**
@@ -519,6 +535,22 @@ export class PeerManager {
    * Cleanup resources
    */
   public cleanup(): void {
+    // Remove event listeners to prevent memory leaks
+    // Use different methods depending on what's available on the node
+    const nodeAny = this.node as any;
+    
+    if (typeof nodeAny.off === 'function') {
+      nodeAny.off('message', this.messageHandler);
+      nodeAny.off('/ping/sender/res', this.pingResponseHandler);
+    } else if (typeof nodeAny.removeListener === 'function') {
+      nodeAny.removeListener('message', this.messageHandler);
+      nodeAny.removeListener('/ping/sender/res', this.pingResponseHandler);
+    } else if (typeof nodeAny.removeAllListeners === 'function') {
+      // Fallback: remove all listeners (less precise but prevents leaks)
+      nodeAny.removeAllListeners('message');
+      nodeAny.removeAllListeners('/ping/sender/res');
+    }
+    
     this.stopMonitoring();
     if (this.pingMonitor) {
       this.pingMonitor.cleanup();

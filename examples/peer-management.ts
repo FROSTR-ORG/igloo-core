@@ -883,6 +883,7 @@ async function main() {
     console.log('• Configuration can be updated dynamically for both peer and ping monitoring');
     console.log('• All operations include proper error handling and graceful degradation');
     console.log('• Resource cleanup is essential for proper operation (monitors, managers)');
+    console.log('• PeerManager cleanup() removes event listeners to prevent memory leaks');
     console.log('• Use createPeerManagerRobust() for production applications');
     console.log('• Always set fallbackMode to "static" for better UX');
     console.log('• Validate credentials first with validatePeerCredentials()');
