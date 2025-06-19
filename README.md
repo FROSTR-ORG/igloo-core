@@ -11,6 +11,7 @@ A TypeScript library providing core functionality for FROSTR/Bifrost distributed
 
 - 🔑 **Keyset Management**: Generate, decode, and manage threshold signature keysets
 - 🌐 **Node Management**: Create and manage BifrostNodes with comprehensive event handling
+- 👥 **Peer Management**: Discover, monitor, and track peer status in real-time
 - 📡 **Echo Functionality**: QR code transfers and share confirmation with visual feedback
 - 🔐 **Nostr Integration**: Complete nostr key management and format conversion utilities
 - 🛡️ **Strong Types**: Full TypeScript support with comprehensive type definitions
@@ -469,6 +470,924 @@ console.log('Bifrost prefixes:', {
 });
 ```
 
+## Ping Functionality
+
+The library provides comprehensive ping capabilities for monitoring peer connectivity, measuring network latency, and diagnosing network issues in your FROSTR signing group. The ping system leverages Bifrost's native ping protocol and provides both individual and batch operations with real-time monitoring capabilities.
+
+### Quick Start - Ping Operations
+
+```typescript
+import { pingPeer, pingPeersAdvanced, createPingMonitor } from '@frostr/igloo-core';
+
+// Ping a single peer
+const result = await pingPeer(node, peerPubkey, {
+  timeout: 5000
+});
+
+if (result.success) {
+  console.log(`✅ Peer responded in ${result.latency}ms`);
+  console.log(`Peer policy: send=${result.policy?.send}, receive=${result.policy?.recv}`);
+} else {
+  console.log(`❌ Ping failed: ${result.error}`);
+}
+
+// Batch ping multiple peers
+const batchResults = await pingPeersAdvanced(node, [peer1, peer2, peer3], {
+  timeout: 5000
+});
+
+const successCount = batchResults.filter(r => r.success).length;
+console.log(`${successCount}/${batchResults.length} peers responded`);
+
+// Calculate fastest/slowest from results
+const successful = batchResults.filter(r => r.success && r.latency);
+const fastest = successful.reduce((min, r) => r.latency! < min.latency! ? r : min);
+const slowest = successful.reduce((max, r) => r.latency! > max.latency! ? r : max);
+console.log(`Fastest: ${fastest?.latency}ms, Slowest: ${slowest?.latency}ms`);
+
+// Real-time monitoring
+const monitor = createPingMonitor(node, [peer1, peer2], {
+  interval: 30000, // Ping every 30 seconds
+  onPingResult: (result) => {
+    console.log(`Peer ${result.pubkey}: ${result.success ? `${result.latency}ms` : 'offline'}`);
+  },
+  onError: (error, context) => console.warn('Monitor error:', error.message)
+});
+
+// Start monitoring
+monitor.start();
+
+// Stop when done (important for cleanup!)
+monitor.stop();
+```
+
+### Advanced Ping Features
+
+#### 🎯 Individual Peer Ping
+
+The `pingPeer` function provides detailed information about a single peer's connectivity:
+
+```typescript
+import { pingPeer } from '@frostr/igloo-core';
+
+const pingResult = await pingPeer(node, peerPubkey, {
+  timeout: 5000,
+  relays: ['wss://relay.damus.io', 'wss://relay.primal.net'],
+  logger: console // Optional custom logger
+});
+
+if (pingResult.success) {
+  console.log('🟢 Peer is online!');
+  console.log(`Latency: ${pingResult.latency}ms`);
+  console.log(`Timestamp: ${pingResult.timestamp}`);
+  
+  // Peer policy information from Bifrost
+  if (pingResult.policy) {
+    console.log(`Can send to peer: ${pingResult.policy.send}`);
+    console.log(`Can receive from peer: ${pingResult.policy.recv}`);
+  }
+} else {
+  console.log('🔴 Peer is offline or unreachable');
+  console.log(`Error: ${pingResult.error}`);
+  console.log(`Timestamp: ${pingResult.timestamp}`);
+}
+```
+
+#### 🚀 Batch Ping Operations
+
+The `pingPeersAdvanced` function efficiently pings multiple peers with comprehensive results:
+
+```typescript
+import { pingPeersAdvanced } from '@frostr/igloo-core';
+
+// Batch ping
+const results = await pingPeersAdvanced(node, peerPubkeys, {
+  timeout: 5000,
+  eventConfig: { enableLogging: true }
+});
+
+console.log('📊 Batch Ping Results:');
+const successCount = results.filter(r => r.success).length;
+console.log(`Success rate: ${successCount}/${results.length} (${((successCount / results.length) * 100).toFixed(1)}%)`);
+
+const successful = results.filter(r => r.success && r.latency);
+if (successful.length > 0) {
+  const avgLatency = successful.reduce((sum, r) => sum + r.latency!, 0) / successful.length;
+  console.log(`Average latency: ${avgLatency.toFixed(1)}ms`);
+  
+  const fastest = successful.reduce((min, r) => r.latency! < min.latency! ? r : min);
+  const slowest = successful.reduce((max, r) => r.latency! > max.latency! ? r : max);
+  console.log(`🏆 Fastest peer: ${fastest.pubkey} (${fastest.latency}ms)`);
+  console.log(`🐌 Slowest peer: ${slowest.pubkey} (${slowest.latency}ms)`);
+}
+
+// Individual results
+results.forEach(result => {
+  const status = result.success ? `${result.latency}ms` : `Failed: ${result.error}`;
+  console.log(`${result.pubkey.slice(0, 8)}...: ${status}`);
+});
+
+// Note: Our implementation always pings concurrently for efficiency
+```
+
+#### 📡 Real-Time Ping Monitoring
+
+The `createPingMonitor` function provides continuous monitoring with customizable callbacks:
+
+```typescript
+import { createPingMonitor } from '@frostr/igloo-core';
+
+const monitor = createPingMonitor(node, peerPubkeys, {
+  interval: 15000,    // Ping every 15 seconds
+  timeout: 5000,      // 5 second timeout per ping
+  
+  // Real-time result callback
+  onPingResult: (result) => {
+    const timestamp = new Date(result.timestamp).toLocaleTimeString();
+    
+    if (result.success) {
+      console.log(`🟢 [${timestamp}] ${result.pubkey.slice(0, 8)}...: ${result.latency}ms`);
+      
+      // Update UI, send notifications, etc.
+      updatePeerStatus(result.pubkey, 'online', result.latency);
+    } else {
+      console.log(`🔴 [${timestamp}] ${result.pubkey.slice(0, 8)}...: ${result.error}`);
+      updatePeerStatus(result.pubkey, 'offline');
+    }
+  },
+  
+  // Error handling
+  onError: (error, context) => {
+    console.warn('⚠️ Monitor error:', error.message);
+    // Could implement retry logic, fallback mechanisms, etc.
+  },
+  
+  relays: ['wss://relay.damus.io', 'wss://relay.primal.net'],
+  eventConfig: { enableLogging: true }
+});
+
+// Start monitoring
+monitor.start();
+console.log('🎯 Ping monitoring started');
+
+// Monitor provides status information
+console.log(`Running: ${monitor.isRunning}`);
+
+// Stop monitoring (important for cleanup!)
+setTimeout(() => {
+  monitor.stop();
+  console.log('🛑 Ping monitoring stopped');
+}, 300000); // Stop after 5 minutes
+```
+
+#### 🔬 Network Diagnostics
+
+The `runPingDiagnostics` function performs comprehensive network analysis:
+
+```typescript
+import { runPingDiagnostics } from '@frostr/igloo-core';
+
+const diagnostics = await runPingDiagnostics(node, peerPubkeys, {
+  rounds: 3,          // Run 3 rounds of pings
+  interval: 2000,     // 2 second delay between rounds
+  timeout: 5000,
+  eventConfig: { enableLogging: true }
+});
+
+console.log('🔬 Network Diagnostics Report:');
+console.log(`Rounds completed: ${diagnostics.summary.totalRounds}`);
+console.log(`Overall success rate: ${diagnostics.summary.successRate.toFixed(1)}%`);
+console.log(`Average latency: ${diagnostics.summary.averageLatency.toFixed(1)}ms`);
+
+// Per-peer statistics
+Object.entries(diagnostics.peerStats).forEach(([pubkey, stats]) => {
+  console.log(`\n📊 Peer ${pubkey.slice(0, 8)}...:`);
+  console.log(`  Success rate: ${stats.successRate.toFixed(1)}% (${stats.successCount}/${stats.totalAttempts})`);
+  
+  if (stats.averageLatency > 0) {
+    console.log(`  Average latency: ${stats.averageLatency.toFixed(1)}ms`);
+    console.log(`  Min/Max latency: ${stats.minLatency}ms / ${stats.maxLatency}ms`);
+  }
+});
+
+// Network health assessment
+if (diagnostics.summary.successRate > 90) {
+  console.log('🟢 Network health: Excellent');
+} else if (diagnostics.summary.successRate > 70) {
+  console.log('🟡 Network health: Good');
+} else {
+  console.log('🔴 Network health: Poor - investigate connectivity issues');
+}
+```
+
+#### 🎯 Credential-Based Ping
+
+The `pingPeersFromCredentials` function extracts peers from credentials and pings them:
+
+```typescript
+import { pingPeersFromCredentials } from '@frostr/igloo-core';
+
+// Automatically extract peers from group credential and ping them
+const results = await pingPeersFromCredentials(
+  groupCredential, 
+  shareCredential,
+  {
+    timeout: 5000,
+    relays: ['wss://relay.damus.io']
+  }
+);
+
+const successCount = results.filter(r => r.success).length;
+console.log(`Pinged ${results.length} peers from credential set`);
+console.log(`${successCount} peers are currently online`);
+
+// Filter for online peers only
+const onlinePeers = results
+  .filter(r => r.success)
+  .map(r => r.pubkey);
+
+console.log('Online peers:', onlinePeers.map(p => p.slice(0, 8) + '...'));
+```
+
+### 🎯 Integrated with IglooCore
+
+The convenience class provides seamless ping integration:
+
+```typescript
+const igloo = new IglooCore();
+
+// Individual ping
+const result = await igloo.pingPeer(node, peerPubkey, { timeout: 5000 });
+
+// Batch ping (note: uses 'pingPeersAdvanced' to avoid conflicts)
+const batchResults = await igloo.pingPeersAdvanced(node, peerPubkeys, {
+  timeout: 5000
+});
+
+// Create ping monitor
+const monitor = igloo.createPingMonitor(node, peerPubkeys, {
+  interval: 30000,
+  onPingResult: (result) => console.log(`Ping result:`, result)
+});
+
+// Run network diagnostics
+const diagnostics = await igloo.runPingDiagnostics(node, peerPubkeys, {
+  rounds: 3,
+  interval: 2000
+});
+
+// Ping from credentials
+const credentialResults = await igloo.pingPeersFromCredentials(
+  groupCredential, 
+  shareCredential
+);
+```
+
+### 📊 Ping Type Definitions
+
+```typescript
+interface PingResult {
+  success: boolean;                // Whether ping succeeded
+  pubkey: string;                  // Peer public key
+  latency?: number;                // Response time in milliseconds
+  policy?: {                       // Peer permissions from Bifrost
+    send: boolean;
+    recv: boolean;
+  };
+  error?: string;                  // Error message if failed
+  timestamp: Date;                 // Timestamp as Date object
+}
+
+// Note: Our ping functions return PingResult[] directly, not a batch result object
+
+interface PingMonitorConfig {
+  interval: number;                // Ping interval in milliseconds
+  timeout: number;                 // Ping timeout in milliseconds
+  onPingResult?: (result: PingResult) => void; // Individual result callback
+  onError?: (error: Error, context: string) => void; // Error callback
+  relays?: string[];               // Relay URLs to use
+  eventConfig?: NodeEventConfig;   // Event configuration
+}
+
+interface PingMonitor {
+  start: () => void;               // Start monitoring
+  stop: () => void;                // Stop monitoring
+  isRunning: boolean;              // Check if monitoring is active
+  ping: () => Promise<PingResult[]>; // Manual ping function
+  cleanup: () => void;             // Cleanup resources
+}
+
+// Ping diagnostics return a complex object with summary and detailed stats
+interface PingDiagnosticsResult {
+  summary: {
+    totalRounds: number;           // Total diagnostic rounds requested
+    totalPeers: number;            // Total peers tested
+    averageLatency: number;        // Average latency across all successful pings
+    successRate: number;           // Overall success rate across all rounds
+    fastestPeer?: string;          // Fastest responding peer pubkey
+    slowestPeer?: string;          // Slowest responding peer pubkey
+  };
+  rounds: PingResult[][];          // Results for each round
+  peerStats: {                     // Per-peer statistics
+    [pubkey: string]: {
+      successCount: number;        // Successful ping count
+      totalAttempts: number;       // Total ping attempts
+      averageLatency: number;      // Average latency for successful pings
+      minLatency: number;          // Minimum latency observed
+      maxLatency: number;          // Maximum latency observed
+      successRate: number;         // Success rate as percentage
+    };
+  };
+}
+```
+
+### 🔧 Configuration Constants
+
+```typescript
+// Default configuration values
+export const DEFAULT_PING_RELAYS = [
+  'wss://relay.damus.io',
+  'wss://relay.primal.net',
+  'wss://relay.snort.social'
+];
+
+export const DEFAULT_PING_TIMEOUT = 5000;      // 5 seconds
+export const DEFAULT_PING_INTERVAL = 30000;    // 30 seconds
+```
+
+### 🛡️ Production Best Practices
+
+#### Error Handling and Resilience
+
+```typescript
+import { pingPeersAdvanced, createPingMonitor } from '@frostr/igloo-core';
+
+// Robust ping with comprehensive error handling
+async function robustPing(node: any, peers: string[]) {
+  try {
+    const results = await pingPeersAdvanced(node, peers, {
+      timeout: 5000,
+      concurrent: true,
+      relays: ['wss://relay.damus.io', 'wss://relay.primal.net']
+    });
+    
+    // Handle partial failures gracefully
+    const successCount = results.filter(r => r.success).length;
+    if (successCount === 0) {
+      console.warn('⚠️ No peers responded - possible network issues');
+      return { allOffline: true, results };
+    }
+    
+    if (successCount < results.length) {
+      console.warn(`⚠️ ${results.length - successCount} peers did not respond`);
+    }
+    
+    return { success: true, results };
+    
+  } catch (error) {
+    console.error('❌ Ping operation failed:', error.message);
+    return { success: false, error: error.message };
+  }
+}
+
+// Production monitoring with proper cleanup
+class PingMonitorManager {
+  private monitors: Map<string, any> = new Map();
+  
+  createMonitor(id: string, node: any, peers: string[]) {
+    // Cleanup existing monitor if present
+    if (this.monitors.has(id)) {
+      this.monitors.get(id).stop();
+    }
+    
+    const monitor = createPingMonitor(node, peers, {
+      interval: 30000,
+      timeout: 5000,
+      onPingResult: (result) => this.handlePingResult(id, result),
+      onError: (error, context) => this.handlePingError(id, error)
+    });
+    
+    this.monitors.set(id, monitor);
+    monitor.start();
+    
+    return monitor;
+  }
+  
+  private handlePingResult(monitorId: string, result: PingResult) {
+    // Send to monitoring service, update UI, etc.
+    console.log(`[${monitorId}] Ping result:`, result);
+  }
+  
+  private handlePingError(monitorId: string, error: Error) {
+    console.warn(`[${monitorId}] Ping error:`, error.message);
+    // Could implement retry logic, alerting, etc.
+  }
+  
+  stopAll() {
+    for (const [id, monitor] of this.monitors) {
+      monitor.stop();
+      console.log(`Stopped monitor: ${id}`);
+    }
+    this.monitors.clear();
+  }
+}
+
+// Usage with proper cleanup
+const monitorManager = new PingMonitorManager();
+
+// Create monitor
+const monitor = monitorManager.createMonitor('main', node, peerPubkeys);
+
+// Cleanup on application shutdown
+process.on('SIGTERM', () => {
+  console.log('🛑 Shutting down ping monitors...');
+  monitorManager.stopAll();
+  process.exit(0);
+});
+```
+
+#### Performance Optimization
+
+```typescript
+// Optimize for large peer lists
+const largePeerList = [...Array(50)].map(() => generateRandomPubkey());
+
+// Use concurrent pinging for speed
+const results = await pingPeersAdvanced(node, largePeerList, {
+  concurrent: true,    // Ping all peers simultaneously
+  timeout: 3000,       // Shorter timeout for faster results
+  relays: ['wss://relay.damus.io'] // Use fewer relays to reduce overhead
+});
+
+// For rate-limited scenarios, use sequential pings
+const sequentialResults = await pingPeersAdvanced(node, largePeerList, {
+  concurrent: false,   // Ping one at a time
+  timeout: 5000
+});
+
+// Adaptive monitoring intervals based on network conditions
+let monitorInterval = 30000; // Start with 30 seconds
+
+const adaptiveMonitor = createPingMonitor(node, peers, {
+  interval: monitorInterval,
+  onBatchComplete: (results) => {
+    const successRate = results.filter(r => r.success).length / results.length;
+    
+    if (successRate > 0.9) {
+      // Network is healthy, can reduce frequency
+      monitorInterval = Math.min(60000, monitorInterval * 1.2);
+    } else if (successRate < 0.5) {
+      // Network issues, increase frequency
+      monitorInterval = Math.max(10000, monitorInterval * 0.8);
+    }
+    
+    // Update monitor interval (would need to restart monitor in practice)
+    console.log(`Adjusting monitor interval to ${monitorInterval}ms based on ${(successRate * 100).toFixed(1)}% success rate`);
+  }
+});
+```
+
+## Peer Management
+
+The library provides comprehensive peer management capabilities for monitoring and tracking other participants in your FROSTR signing group in real-time. The system includes robust error handling, fallback mechanisms, and production-ready reliability features.
+
+### Quick Start - Peer Management
+
+```typescript
+import { createPeerManagerRobust } from '@frostr/igloo-core';
+
+// Production-ready peer management with automatic fallbacks
+const result = await createPeerManagerRobust(node, groupCredential, shareCredential, {
+  fallbackMode: 'static',  // Always provide peer list even if monitoring fails
+  autoMonitor: true,       // Start monitoring automatically
+  onError: (error, context) => {
+    console.warn(`Peer issue in ${context}:`, error.message);
+  }
+});
+
+if (result.success) {
+  const status = result.peerManager.getPeerStatus();
+  console.log(`✅ ${result.mode} mode: ${status.totalPeers} peers found`);
+  
+  if (result.mode === 'full') {
+    console.log(`🟢 ${status.onlineCount} peers online`);
+  }
+} else {
+  console.error('❌ Peer management failed:', result.error);
+}
+```
+
+### Enhanced Peer Management Features
+
+#### 🛡️ Robust Peer Manager Creation
+
+The `createPeerManagerRobust` function provides production-ready peer management with automatic error handling and fallback modes:
+
+```typescript
+import { createPeerManagerRobust } from '@frostr/igloo-core';
+
+const result = await createPeerManagerRobust(node, groupCredential, shareCredential, {
+  fallbackMode: 'static',
+  autoMonitor: true,
+  onError: (error, context) => {
+    console.warn(`Peer management error in ${context}:`, error.message);
+  }
+});
+
+if (result.success) {
+  console.log(`Peer manager created in ${result.mode} mode`);
+  
+  // Handle warnings (non-fatal issues)
+  if (result.warnings) {
+    result.warnings.forEach(warning => console.warn('⚠️', warning));
+  }
+  
+  const status = result.peerManager.getPeerStatus();
+  console.log(`Found ${status.totalPeers} peers`);
+  
+  switch (result.mode) {
+    case 'full':
+      // Full monitoring with live status updates
+      console.log(`${status.onlineCount} peers currently online`);
+      break;
+    case 'static':
+      // Static peer list (monitoring unavailable but peers still discoverable)
+      console.log('Live monitoring unavailable, showing static peer list');
+      break;
+  }
+} else {
+  console.error('Peer management failed:', result.error);
+  // Handle complete failure (invalid credentials, etc.)
+}
+```
+
+#### ✅ Peer Credential Validation
+
+Validate credentials upfront to provide better user feedback:
+
+```typescript
+import { validatePeerCredentials } from '@frostr/igloo-core';
+
+const validation = await validatePeerCredentials(groupCredential, shareCredential);
+
+if (validation.isValid) {
+  console.log(`✅ Found ${validation.peerCount} peers`);
+  console.log(`Self pubkey: ${validation.selfPubkey}`);
+  
+  // Handle non-fatal warnings
+  if (validation.warnings.length > 0) {
+    validation.warnings.forEach(warning => console.warn('⚠️', warning));
+  }
+} else {
+  console.error('❌ Invalid credentials:', validation.error);
+  // Show user-friendly error message instead of crashing
+}
+```
+
+#### 📊 Static Peer Manager Fallback
+
+When live monitoring fails, the system automatically falls back to a static peer manager:
+
+```typescript
+import { StaticPeerManager } from '@frostr/igloo-core';
+
+// Usually created automatically by createPeerManagerRobust, but can be manual
+const staticManager = new StaticPeerManager(
+  ['peer1_pubkey', 'peer2_pubkey'], 
+  ['Live monitoring unavailable due to network issues']
+);
+
+const status = staticManager.getPeerStatus();
+console.log(`Static peer list: ${status.totalPeers} peers found`);
+console.log('Warnings:', staticManager.getWarnings());
+
+// Static manager provides peer discovery but no live status
+console.log('All peers:', status.peers.map(p => p.pubkey));
+console.log('Online count:', status.onlineCount); // Always 0 for static
+```
+
+#### ⚙️ Configuration Options
+
+```typescript
+interface EnhancedPeerMonitorConfig {
+  pingInterval: number;           // How often to ping (default: 30000ms)
+  pingTimeout: number;            // Ping timeout (default: 5000ms)
+  autoMonitor: boolean;           // Auto-start monitoring (default: true)
+  fallbackMode?: 'static' | 'disabled'; // Fallback behavior
+  onPeerStatusChange?: (peer: Peer) => void;  // Status change callback
+  onError?: (error: Error, context: string) => void; // Error callback
+}
+
+// Production configuration - always provides peer list
+const productionConfig = {
+  fallbackMode: 'static',
+  onError: (error, context) => {
+    logToMonitoringService(`Peer ${context}`, error);
+  }
+};
+
+// Development configuration - fail fast for debugging
+const strictConfig = {
+  fallbackMode: 'disabled',
+  autoMonitor: false
+};
+
+// High-frequency monitoring
+const quickConfig = {
+  pingInterval: 10000,    // Ping every 10 seconds
+  pingTimeout: 2000,      // 2 second timeout
+  fallbackMode: 'static'
+};
+```
+
+### 🔧 Advanced PeerManager Usage
+
+For applications that need direct control over peer management, use the `PeerManager` class:
+
+```typescript
+import { PeerManager, createPeerManager } from '@frostr/igloo-core';
+
+// Create a peer manager with custom configuration
+const peerManager = await createPeerManager(
+  node,
+  groupCredential,
+  shareCredential,
+  {
+    pingInterval: 30000,    // Ping every 30 seconds
+    pingTimeout: 5000,      // 5 second timeout
+    autoMonitor: true,      // Start monitoring automatically
+    onPeerStatusChange: (peer) => {
+      console.log(`Peer ${peer.pubkey} is now ${peer.status}`);
+      
+      // Custom logic for peer status changes
+      if (peer.status === 'online') {
+        console.log(`🟢 ${peer.pubkey} came online`);
+      } else if (peer.status === 'offline') {
+        console.log(`🔴 ${peer.pubkey} went offline`);
+      }
+    }
+  }
+);
+
+// Get comprehensive peer status
+const status = peerManager.getPeerStatus();
+console.log(`${status.onlineCount}/${status.totalPeers} peers online`);
+console.log('Last checked:', status.lastChecked);
+
+// Get filtered peer lists
+const onlinePeers = peerManager.getOnlinePeers();
+const offlinePeers = peerManager.getOfflinePeers();
+console.log('Online peers:', onlinePeers.map(p => p.pubkey));
+
+// Check specific peer status
+const isOnline = peerManager.isPeerOnline(peerPubkey);
+const specificPeer = peerManager.getPeer(peerPubkey);
+
+// Manual operations
+const pingResult = await peerManager.pingPeers();
+console.log('Ping results:', pingResult);
+
+// Update monitoring configuration
+peerManager.updateConfig({ pingInterval: 15000 });
+
+// Cleanup when done (important!)
+peerManager.cleanup();
+```
+
+### 🚀 Simple Standalone Functions
+
+For lightweight peer operations without full management, use the standalone functions:
+
+```typescript
+import { 
+  extractPeersFromCredentials, 
+  pingPeers, 
+  checkPeerStatus 
+} from '@frostr/igloo-core';
+
+// Extract peer list from group credentials
+const peers = extractPeersFromCredentials(groupCredential, shareCredential);
+console.log('Peers in group:', peers);
+
+// Quick ping to check who's currently online
+const onlinePeers = await pingPeers(node);
+console.log('Online peers:', onlinePeers);
+
+// Get detailed peer status with online/offline information
+const peerStatus = await checkPeerStatus(node, groupCredential, shareCredential);
+peerStatus.forEach(peer => {
+  const statusIcon = peer.status === 'online' ? '🟢' : '🔴';
+  console.log(`${statusIcon} ${peer.pubkey}: ${peer.status}`);
+});
+```
+
+### 🎯 Integrated with IglooCore
+
+The convenience class provides seamless peer management integration:
+
+```typescript
+const igloo = new IglooCore();
+
+// Create node and robust peer manager in one workflow
+const node = await igloo.createNode(groupCredential, shareCredential);
+
+// Validate credentials upfront for better UX
+const validation = await igloo.validatePeerCredentials(groupCredential, shareCredential);
+if (!validation.isValid) {
+  throw new Error(`Invalid credentials: ${validation.error}`);
+}
+
+// Create robust peer manager with automatic fallbacks
+const result = await igloo.createPeerManagerRobust(node, groupCredential, shareCredential, {
+  fallbackMode: 'static',
+  onError: (error, context) => console.warn(`Peer ${context}:`, error.message)
+});
+
+if (result.success) {
+  console.log(`Peer management active in ${result.mode} mode`);
+  
+  // Use the peer manager
+  const status = result.peerManager.getPeerStatus();
+  console.log(`Managing ${status.totalPeers} peers`);
+}
+
+// Alternative: Use standalone functions for simple operations
+const peers = await igloo.extractPeers(groupCredential, shareCredential);
+const onlinePeers = await igloo.pingPeers(node);
+const detailedStatus = await igloo.checkPeerStatus(node, groupCredential, shareCredential);
+```
+
+### 📊 Real-Time Status Monitoring
+
+The peer management system provides comprehensive real-time status tracking:
+
+```typescript
+// Set up real-time monitoring with status change callbacks
+const peerManager = await createPeerManager(node, groupCredential, shareCredential, {
+  onPeerStatusChange: (peer) => {
+    const timestamp = new Date().toISOString();
+    
+    switch (peer.status) {
+      case 'online':
+        console.log(`🟢 [${timestamp}] ${peer.pubkey} came online`);
+        // Trigger UI update, send notification, etc.
+        break;
+      case 'offline':
+        console.log(`🔴 [${timestamp}] ${peer.pubkey} went offline`);
+        // Handle offline peer logic
+        break;
+      case 'unknown':
+        console.log(`⚪ [${timestamp}] ${peer.pubkey} status unknown`);
+        break;
+    }
+  }
+});
+
+// Get comprehensive status dashboard
+const status = peerManager.getPeerStatus();
+console.log('📊 Peer Status Dashboard:');
+console.log({
+  totalPeers: status.totalPeers,
+  onlineCount: status.onlineCount,
+  offlineCount: status.totalPeers - status.onlineCount,
+  lastChecked: status.lastChecked,
+  onlinePeers: status.onlinePeers.map(p => ({
+    pubkey: p.pubkey,
+    lastSeen: p.lastSeen
+  })),
+  offlinePeers: status.offlinePeers.map(p => p.pubkey)
+});
+
+// Monitor specific peer
+const importantPeer = 'peer1_pubkey';
+if (peerManager.isPeerOnline(importantPeer)) {
+  console.log(`✅ Critical peer ${importantPeer} is online`);
+} else {
+  console.warn(`⚠️ Critical peer ${importantPeer} is offline`);
+}
+```
+
+### 🛡️ Production Error Handling
+
+Production applications should implement comprehensive error handling and graceful degradation:
+
+```typescript
+import { createPeerManagerRobust, validatePeerCredentials } from '@frostr/igloo-core';
+
+async function setupPeerManagement(node, groupCredential, shareCredential) {
+  try {
+    // Step 1: Validate credentials upfront
+    const validation = await validatePeerCredentials(groupCredential, shareCredential);
+    if (!validation.isValid) {
+      console.error('❌ Invalid peer credentials:', validation.error);
+      return { success: false, error: validation.error };
+    }
+
+    console.log(`✅ Credentials valid: ${validation.peerCount} peers found`);
+
+    // Step 2: Create robust peer manager with comprehensive error handling
+    const result = await createPeerManagerRobust(node, groupCredential, shareCredential, {
+      fallbackMode: 'static',  // Always provide peer list
+      autoMonitor: true,
+      onError: (error, context) => {
+        // Log error but don't crash the app
+        console.error(`Peer management error in ${context}:`, error.message);
+        
+        // Send to monitoring service
+        sendToMonitoringService('peer_management_error', {
+          context,
+          error: error.message,
+          timestamp: new Date().toISOString()
+        });
+      }
+    });
+
+    // Step 3: Handle different operational modes
+    switch (result.mode) {
+      case 'full':
+        console.log('🟢 Full peer monitoring active');
+        // Enable all peer-dependent features
+        enableRealtimeFeatures();
+        break;
+        
+      case 'static':
+        console.log('🟡 Static peer list mode (live monitoring unavailable)');
+        // Disable real-time features, show static peer list
+        showStaticPeerList(result.peerManager.getAllPeers());
+        break;
+        
+      case 'failed':
+        console.error('🔴 Peer management completely failed');
+        // Fallback to single-user mode or show error to user
+        return { success: false, error: result.error };
+    }
+
+    return { success: true, peerManager: result.peerManager, mode: result.mode };
+
+  } catch (error) {
+    console.error('❌ Unexpected error setting up peer management:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Usage with proper cleanup
+const peerSetup = await setupPeerManagement(node, groupCredential, shareCredential);
+
+if (peerSetup.success) {
+  // Use peer manager...
+  const status = peerSetup.peerManager.getPeerStatus();
+  console.log(`Managing ${status.totalPeers} peers in ${peerSetup.mode} mode`);
+  
+  // Always cleanup when done (e.g., component unmount, app shutdown)
+  process.on('SIGTERM', () => {
+    if (peerSetup.peerManager) {
+      peerSetup.peerManager.cleanup();
+    }
+  });
+} else {
+  // Handle failure gracefully
+  showUserFriendlyError('Peer management unavailable. Operating in single-user mode.');
+}
+```
+
+### 📋 Type Definitions
+
+```typescript
+interface Peer {
+  pubkey: string;                          // Peer's public key
+  status: 'online' | 'offline' | 'unknown'; // Current status
+  lastSeen?: Date;                         // Last seen timestamp
+  allowSend: boolean;                      // Can send to this peer
+  allowReceive: boolean;                   // Can receive from this peer
+}
+
+interface PeerValidationResult {
+  isValid: boolean;                        // Whether credentials are valid
+  peerCount: number;                       // Number of peers found
+  peers: string[];                         // Array of peer public keys
+  selfPubkey?: string;                     // Self public key
+  warnings: string[];                      // Any warnings
+  error?: string;                          // Error message if invalid
+}
+
+interface PeerManagerResult {
+  success: boolean;                        // Whether creation succeeded
+  peerManager?: PeerManager | StaticPeerManager; // The created manager
+  mode: 'full' | 'static' | 'failed';     // Operation mode
+  warnings?: string[];                     // Any warnings
+  error?: string;                          // Error message if failed
+}
+
+interface EnhancedPeerMonitorConfig {
+  pingInterval: number;                    // Ping frequency (default: 30000ms)
+  pingTimeout: number;                     // Ping timeout (default: 5000ms)
+  autoMonitor: boolean;                    // Auto-start monitoring (default: true)
+  fallbackMode?: 'static' | 'disabled';   // Fallback behavior
+  onPeerStatusChange?: (peer: Peer) => void; // Status change callback
+  onError?: (error: Error, context: string) => void; // Error callback
+}
+```
+
 ## Best Practices
 
 ### ✅ Node Lifecycle & Events
@@ -795,7 +1714,211 @@ The demo showcases:
 - Keyset generation and recovery
 - Echo functionality and timeouts
 - Node management and connections
+- Peer management and monitoring
+- Comprehensive ping functionality
 - Error handling scenarios
+
+### Additional Examples
+
+The `examples/` directory contains comprehensive demonstrations:
+
+```bash
+# Run the ping functionality example
+npx ts-node --esm examples/ping-example.ts
+
+# Run the peer management example  
+npx ts-node --esm examples/peer-management.ts
+```
+
+These examples demonstrate real-world usage patterns with:
+- Generated credentials for immediate testing
+- Complete error handling and graceful degradation
+- Production-ready patterns and best practices
+
+## Complete Example - Peer Management
+
+Here's a comprehensive example showing peer management in a real application:
+
+```typescript
+import { 
+  IglooCore, 
+  createPeerManagerRobust, 
+  validatePeerCredentials 
+} from '@frostr/igloo-core';
+
+class SigningApplication {
+  private igloo: IglooCore;
+  private node: any;
+  private peerManager: any;
+  
+  constructor() {
+    this.igloo = new IglooCore();
+  }
+  
+  async initialize(groupCredential: string, shareCredential: string) {
+    try {
+      // Step 1: Validate credentials
+      console.log('🔍 Validating credentials...');
+      const validation = await validatePeerCredentials(groupCredential, shareCredential);
+      
+      if (!validation.isValid) {
+        throw new Error(`Invalid credentials: ${validation.error}`);
+      }
+      
+      console.log(`✅ Found ${validation.peerCount} peers in signing group`);
+      
+      // Step 2: Create node
+      console.log('🌐 Creating node...');
+      this.node = await this.igloo.createNode(groupCredential, shareCredential);
+      
+      // Step 3: Set up robust peer management
+      console.log('👥 Setting up peer management...');
+      const peerResult = await createPeerManagerRobust(this.node, groupCredential, shareCredential, {
+        fallbackMode: 'static',
+        autoMonitor: true,
+        pingInterval: 15000, // Check every 15 seconds
+        onPeerStatusChange: (peer) => this.handlePeerStatusChange(peer),
+        onError: (error, context) => this.handlePeerError(error, context)
+      });
+      
+      if (peerResult.success) {
+        this.peerManager = peerResult.peerManager;
+        console.log(`🟢 Peer management active in ${peerResult.mode} mode`);
+        
+        // Show initial peer status
+        this.displayPeerStatus();
+      } else {
+        console.warn('⚠️ Peer management failed, continuing without peer monitoring');
+      }
+      
+      return { success: true };
+      
+    } catch (error) {
+      console.error('❌ Initialization failed:', error.message);
+      return { success: false, error: error.message };
+    }
+  }
+  
+  private handlePeerStatusChange(peer: any) {
+    const timestamp = new Date().toLocaleTimeString();
+    
+    switch (peer.status) {
+      case 'online':
+        console.log(`🟢 [${timestamp}] Peer came online: ${peer.pubkey.slice(0, 8)}...`);
+        this.notifyUI('peer_online', peer);
+        break;
+      case 'offline':
+        console.log(`🔴 [${timestamp}] Peer went offline: ${peer.pubkey.slice(0, 8)}...`);
+        this.notifyUI('peer_offline', peer);
+        break;
+    }
+  }
+  
+  private handlePeerError(error: Error, context: string) {
+    console.warn(`⚠️ Peer management error in ${context}:`, error.message);
+    // Could send to monitoring service here
+  }
+  
+  private displayPeerStatus() {
+    if (!this.peerManager) return;
+    
+    const status = this.peerManager.getPeerStatus();
+    console.log('\n📊 Peer Status Dashboard:');
+    console.log(`Total peers: ${status.totalPeers}`);
+    console.log(`Online: ${status.onlineCount}`);
+    console.log(`Offline: ${status.totalPeers - status.onlineCount}`);
+    console.log(`Last checked: ${status.lastChecked?.toLocaleTimeString() || 'Never'}`);
+    
+    if (status.onlinePeers.length > 0) {
+      console.log('\n🟢 Online peers:');
+      status.onlinePeers.forEach(peer => {
+        console.log(`  • ${peer.pubkey.slice(0, 8)}... (last seen: ${peer.lastSeen?.toLocaleTimeString()})`);
+      });
+    }
+    
+    if (status.offlinePeers.length > 0) {
+      console.log('\n🔴 Offline peers:');
+      status.offlinePeers.forEach(peer => {
+        console.log(`  • ${peer.pubkey.slice(0, 8)}...`);
+      });
+    }
+  }
+  
+  private notifyUI(event: string, data: any) {
+    // Emit events to UI components
+    console.log(`UI Event: ${event}`, data);
+  }
+  
+  async getSigningReadiness() {
+    if (!this.peerManager) {
+      return { ready: false, reason: 'Peer management not available' };
+    }
+    
+    const status = this.peerManager.getPeerStatus();
+    const requiredPeers = 2; // Example: need at least 2 peers online
+    
+    if (status.onlineCount >= requiredPeers) {
+      return { 
+        ready: true, 
+        onlinePeers: status.onlineCount,
+        totalPeers: status.totalPeers 
+      };
+    } else {
+      return { 
+        ready: false, 
+        reason: `Need ${requiredPeers} peers online, only ${status.onlineCount} available`,
+        onlinePeers: status.onlineCount,
+        totalPeers: status.totalPeers
+      };
+    }
+  }
+  
+  async shutdown() {
+    console.log('🔄 Shutting down...');
+    
+    if (this.peerManager) {
+      this.peerManager.cleanup();
+      console.log('✅ Peer manager cleaned up');
+    }
+    
+    if (this.node) {
+      this.node.close();
+      console.log('✅ Node disconnected');
+    }
+  }
+}
+
+// Usage
+const app = new SigningApplication();
+
+async function main() {
+  const result = await app.initialize(groupCredential, shareCredential);
+  
+  if (result.success) {
+    console.log('🚀 Application ready!');
+    
+    // Check signing readiness
+    const readiness = await app.getSigningReadiness();
+    if (readiness.ready) {
+      console.log('✅ Ready for signing operations');
+    } else {
+      console.log('⏳ Waiting for peers:', readiness.reason);
+    }
+    
+    // Graceful shutdown
+    process.on('SIGINT', () => {
+      console.log('\n🛑 Received shutdown signal');
+      app.shutdown().then(() => process.exit(0));
+    });
+    
+  } else {
+    console.error('❌ Failed to start application:', result.error);
+    process.exit(1);
+  }
+}
+
+main().catch(console.error);
+```
 
 ## API Reference
 
@@ -836,6 +1959,28 @@ export function derivePublicKey(privateKey: string): { npub: string; hexPublicKe
 export function validateHexKey(hex: string, keyType?: 'private' | 'public'): void
 export function validateNostrKey(key: string, expectedType?: 'nsec' | 'npub'): void
 
+// Ping functions
+export function pingPeer(node: BifrostNode, peerPubkey: string, options?: { timeout?: number; eventConfig?: NodeEventConfig }): Promise<PingResult>
+export function pingPeers(node: BifrostNode, peerPubkeys: string[], options?: { timeout?: number; eventConfig?: NodeEventConfig }): Promise<PingResult[]>
+export function pingPeersAdvanced(node: BifrostNode, peerPubkeys: string[], options?: { timeout?: number; eventConfig?: NodeEventConfig }): Promise<PingResult[]>
+export function createPingMonitor(node: BifrostNode, peerPubkeys: string[], config?: Partial<PingMonitorConfig>): PingMonitor
+export function runPingDiagnostics(node: BifrostNode, peerPubkeys: string[], options?: { rounds?: number; timeout?: number; interval?: number; eventConfig?: NodeEventConfig }): Promise<{ summary: object; rounds: PingResult[][]; peerStats: object }>
+export function pingPeersFromCredentials(groupCredential: string, shareCredential: string, options?: { relays?: string[]; timeout?: number; eventConfig?: NodeEventConfig }): Promise<PingResult[]>
+export const DEFAULT_PING_RELAYS: string[]
+export const DEFAULT_PING_TIMEOUT: number
+export const DEFAULT_PING_INTERVAL: number
+
+// Peer management functions
+export class PeerManager
+export class StaticPeerManager
+export function createPeerManager(node: BifrostNode, groupCredential: string, shareCredential: string, config?: Partial<PeerMonitorConfig>): Promise<PeerManager>
+export function createPeerManagerRobust(node: BifrostNode, groupCredential: string, shareCredential: string, config?: Partial<EnhancedPeerMonitorConfig>): Promise<PeerManagerResult>
+export function validatePeerCredentials(groupCredential: string, shareCredential: string): Promise<PeerValidationResult>
+export function extractPeersFromCredentials(groupCredential: string, shareCredential: string): string[]
+export function pingPeers(node: BifrostNode, timeout?: number): Promise<string[]> // Legacy compatibility function
+export function checkPeerStatus(node: BifrostNode, groupCredential: string, shareCredential: string): Promise<{ pubkey: string; status: 'online' | 'offline' }[]>
+export const DEFAULT_PEER_MONITOR_CONFIG: PeerMonitorConfig
+
 // Validation functions
 export function validateKeysetParams(params: KeysetParams): void
 export function validateSecretKey(secretKey: string): void
@@ -867,6 +2012,23 @@ export class NostrValidationError extends IglooError
 
 // All types and interfaces
 export * from './types'
+
+// Ping types
+export type {
+  PingResult,
+  PingMonitorConfig,
+  PingMonitor
+} from './ping'
+
+// Peer management types
+export type {
+  Peer,
+  PeerMonitorConfig,
+  PeerMonitorResult,
+  PeerValidationResult,
+  PeerManagerResult,
+  EnhancedPeerMonitorConfig
+} from './peer'
 ```
 
 ## Contributing
