@@ -87,14 +87,40 @@ export async function pingPeer(
     let isResolved = false;
     let timeoutId: NodeJS.Timeout | null = null;
     const startTime = Date.now();
+    let onPingResponse: ((peerData: any) => void) | null = null;
+    let onPingError: ((reason: string, msg: any) => void) | null = null;
 
     const safeResolve = (result: PingResult) => {
       if (!isResolved) {
         isResolved = true;
+        
+        // Clear timeout
         if (timeoutId) {
           clearTimeout(timeoutId);
           timeoutId = null;
         }
+        
+        // Remove event listeners to prevent memory leaks
+        if (onPingResponse) {
+          const nodeAny = node as any;
+          if (typeof nodeAny.off === 'function') {
+            nodeAny.off('/ping/sender/ret', onPingResponse);
+          } else if (typeof nodeAny.removeListener === 'function') {
+            nodeAny.removeListener('/ping/sender/ret', onPingResponse);
+          }
+          onPingResponse = null;
+        }
+        
+        if (onPingError) {
+          const nodeAny = node as any;
+          if (typeof nodeAny.off === 'function') {
+            nodeAny.off('/ping/sender/err', onPingError);
+          } else if (typeof nodeAny.removeListener === 'function') {
+            nodeAny.removeListener('/ping/sender/err', onPingError);
+          }
+          onPingError = null;
+        }
+        
         resolve(result);
       }
     };
@@ -120,7 +146,7 @@ export async function pingPeer(
 
     try {
       // Set up event listeners for ping response
-      const onPingResponse = (peerData: any) => {
+      onPingResponse = (peerData: any) => {
         if (peerData && peerData.pubkey === peerPubkey) {
           const latency = Date.now() - startTime;
           customLogger('info', `Ping successful, latency: ${latency}ms`);
@@ -135,7 +161,7 @@ export async function pingPeer(
         }
       };
 
-      const onPingError = (reason: string, msg: any) => {
+      onPingError = (reason: string, msg: any) => {
         customLogger('error', `Ping failed: ${reason}`);
         safeResolve({
           success: false,
