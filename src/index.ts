@@ -37,6 +37,21 @@ export {
   DEFAULT_ECHO_RELAYS
 } from './echo.js';
 
+// Export ping functionality
+export {
+  pingPeer,
+  pingPeers as pingPeersAdvanced,
+  createPingMonitor,
+  pingPeersFromCredentials,
+  runPingDiagnostics,
+  DEFAULT_PING_RELAYS,
+  DEFAULT_PING_TIMEOUT,
+  DEFAULT_PING_INTERVAL,
+  type PingResult,
+  type PingMonitorConfig,
+  type PingMonitor
+} from './ping.js';
+
 // Export nostr utilities
 export {
   nsecToHex,
@@ -65,6 +80,25 @@ export {
   VALIDATION_CONSTANTS,
   type ValidationOptions
 } from './validation.js';
+
+// Export peer management functions
+export {
+  PeerManager,
+  StaticPeerManager,
+  createPeerManager,
+  createPeerManagerRobust,
+  validatePeerCredentials,
+  extractPeersFromCredentials,
+  pingPeers,
+  checkPeerStatus,
+  DEFAULT_PEER_MONITOR_CONFIG,
+  type Peer,
+  type PeerMonitorConfig,
+  type EnhancedPeerMonitorConfig,
+  type PeerMonitorResult,
+  type PeerValidationResult,
+  type PeerManagerResult
+} from './peer.js';
 
 // Export a convenience class for easier usage
 export class IglooCore {
@@ -280,6 +314,120 @@ export class IglooCore {
   ) {
     const { validateWithOptions } = await import('./validation.js');
     return validateWithOptions(credentials, options);
+  }
+
+  // Peer Management Methods
+
+  /**
+   * Create a peer manager for monitoring peer status
+   */
+  async createPeerManager(
+    node: any,
+    groupCredential: string,
+    shareCredential: string,
+    config?: any
+  ) {
+    const { createPeerManager } = await import('./peer.js');
+    return createPeerManager(node, groupCredential, shareCredential, config);
+  }
+
+  /**
+   * Create a robust peer manager with enhanced error handling and fallback options
+   */
+  async createPeerManagerRobust(
+    node: any,
+    groupCredential: string,
+    shareCredential: string,
+    config?: any
+  ) {
+    const { createPeerManagerRobust } = await import('./peer.js');
+    return createPeerManagerRobust(node, groupCredential, shareCredential, config);
+  }
+
+  /**
+   * Validate peer credentials before creating peer manager
+   */
+  async validatePeerCredentials(
+    groupCredential: string,
+    shareCredential: string
+  ) {
+    const { validatePeerCredentials } = await import('./peer.js');
+    return validatePeerCredentials(groupCredential, shareCredential);
+  }
+
+  /**
+   * Extract peer list from credentials
+   */
+  async extractPeers(groupCredential: string, shareCredential: string) {
+    const { extractPeersFromCredentials } = await import('./peer.js');
+    return extractPeersFromCredentials(groupCredential, shareCredential);
+  }
+
+  /**
+   * Check peer status using ping
+   */
+  async checkPeerStatus(
+    node: any,
+    groupCredential: string,
+    shareCredential: string
+  ) {
+    const { checkPeerStatus } = await import('./peer.js');
+    return checkPeerStatus(node, groupCredential, shareCredential);
+  }
+
+  /**
+   * Simple ping to get online peers
+   */
+  async pingPeers(node: any, timeout?: number) {
+    const { pingPeers } = await import('./peer.js');
+    return pingPeers(node, timeout);
+  }
+
+  /**
+   * Ping a specific peer with detailed results
+   */
+  async pingPeer(node: any, peerPubkey: string, options?: any) {
+    const { pingPeer } = await import('./ping.js');
+    return pingPeer(node, peerPubkey, options);
+  }
+
+  /**
+   * Ping multiple peers with detailed results and latency
+   */
+  async pingPeersAdvanced(node: any, peerPubkeys: string[], options?: any) {
+    const { pingPeers } = await import('./ping.js');
+    return pingPeers(node, peerPubkeys, options);
+  }
+
+  /**
+   * Create a ping monitor for continuous peer monitoring
+   */
+  async createPingMonitor(node: any, peerPubkeys: string[], config?: any) {
+    const { createPingMonitor } = await import('./ping.js');
+    return createPingMonitor(node, peerPubkeys, config);
+  }
+
+  /**
+   * Run comprehensive ping diagnostics
+   */
+  async runPingDiagnostics(node: any, peerPubkeys: string[], options?: any) {
+    const { runPingDiagnostics } = await import('./ping.js');
+    return runPingDiagnostics(node, peerPubkeys, options);
+  }
+
+  /**
+   * Ping peers from credentials (convenience method)
+   */
+  async pingPeersFromCredentials(
+    groupCredential: string,
+    shareCredential: string,
+    options?: any
+  ) {
+    const { pingPeersFromCredentials } = await import('./ping.js');
+    return pingPeersFromCredentials(groupCredential, shareCredential, {
+      relays: this.defaultRelays,
+      ...options
+    });
   }
 }
 

@@ -1,4 +1,4 @@
-import { IglooCore, igloo } from '../src/index';
+import { IglooCore, igloo, NodeError } from '../src/index';
 import { generateNostrKeyPair, nsecToHex, hexToNsec } from '../src/nostr';
 
 describe('IglooCore Convenience Class', () => {
@@ -226,6 +226,85 @@ describe('IglooCore Convenience Class', () => {
       await expect(core.recoverSecret('invalid', ['invalid'])).rejects.toThrow();
       await expect(core.convertKey('invalid', 'hex')).rejects.toThrow();
       await expect(core.derivePublicKey('invalid')).rejects.toThrow();
+    });
+  });
+
+  describe('peer management integration', () => {
+    let mockNode: any;
+
+    beforeEach(() => {
+      // Mock BifrostNode
+      mockNode = {
+        connect: jest.fn().mockResolvedValue(undefined),
+        close: jest.fn(),
+        on: jest.fn(),
+        off: jest.fn(),
+        removeAllListeners: jest.fn(),
+        client: { connected: true },
+        req: {
+          ping: jest.fn().mockResolvedValue({
+            ok: true,
+            data: ['peer1_pubkey']
+          })
+        }
+      };
+    });
+
+    it('should create peer manager through IglooCore', async () => {
+      const core = new IglooCore();
+      
+      // With invalid credentials, the new implementation throws errors
+      await expect(
+        core.createPeerManager(mockNode, 'group_cred', 'share_cred')
+      ).rejects.toThrow(NodeError);
+    });
+
+    it('should extract peers through IglooCore', async () => {
+      const core = new IglooCore();
+      
+      // With invalid credentials, the new implementation throws errors
+      await expect(
+        core.extractPeers('group_cred', 'share_cred')
+      ).rejects.toThrow(NodeError);
+    });
+
+    it('should ping peers through IglooCore', async () => {
+      const core = new IglooCore();
+      const onlinePeers = await core.pingPeers(mockNode);
+      
+      expect(Array.isArray(onlinePeers)).toBe(true);
+    });
+
+    it('should check peer status through IglooCore', async () => {
+      const core = new IglooCore();
+      
+      // With invalid credentials, the new implementation throws errors
+      await expect(
+        core.checkPeerStatus(mockNode, 'group_cred', 'share_cred')
+      ).rejects.toThrow(NodeError);
+    });
+
+    it('should handle peer management errors gracefully', async () => {
+      const core = new IglooCore();
+      
+      // The new implementation throws NodeError for invalid credentials
+      await expect(
+        core.extractPeers('group_cred', 'share_cred')
+      ).rejects.toThrow(NodeError);
+      
+      // Test that error handling works by checking the method exists
+      expect(typeof core.extractPeers).toBe('function');
+    });
+
+    it('should work with created nodes', async () => {
+      const core = new IglooCore(['wss://relay.test.com']);
+      
+      // This would normally work with real credentials
+      // Here we're just testing the method exists and returns expected types
+      expect(typeof core.createPeerManager).toBe('function');
+      expect(typeof core.extractPeers).toBe('function');
+      expect(typeof core.pingPeers).toBe('function');
+      expect(typeof core.checkPeerStatus).toBe('function');
     });
   });
 }); 
