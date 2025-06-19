@@ -1274,11 +1274,11 @@ const peers = await igloo.extractPeers(groupCredential, shareCredential);
 const onlinePeers = await igloo.pingPeers(node);
 const detailedStatus = await igloo.checkPeerStatus(node, groupCredential, shareCredential);
 
-// Use pubkey utilities through IglooCore
-const normalized = igloo.normalizePubkey('02abcd1234...');
-const withPrefix = igloo.addPubkeyPrefix('abcd1234...');
-const isMatch = igloo.comparePubkeys('02abcd1234...', 'abcd1234...');
-const selfPubkey = igloo.extractSelfPubkey(groupCredential, shareCredential, {
+// Use pubkey utilities through IglooCore (all async)
+const normalized = await igloo.normalizePubkey('02abcd1234...');
+const withPrefix = await igloo.addPubkeyPrefix('abcd1234...');
+const isMatch = await igloo.comparePubkeys('02abcd1234...', 'abcd1234...');
+const selfPubkey = await igloo.extractSelfPubkey(groupCredential, shareCredential, {
   normalize: true,
   suppressWarnings: false
 });

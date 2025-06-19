@@ -172,6 +172,77 @@ describe('IglooCore Convenience Class', () => {
     });
   });
 
+  describe('Pubkey utility methods', () => {
+    it('should normalize pubkey by removing 02/03 prefix', async () => {
+      const core = new IglooCore();
+      const compressed = '02abcd1234567890abcd1234567890abcd1234567890abcd1234567890abcd1234';
+      const expected = 'abcd1234567890abcd1234567890abcd1234567890abcd1234567890abcd1234';
+      
+      const result = await core.normalizePubkey(compressed);
+      expect(result).toBe(expected);
+    });
+
+    it('should add prefix to pubkey if missing', async () => {
+      const core = new IglooCore();
+      const uncompressed = 'abcd1234567890abcd1234567890abcd1234567890abcd1234567890abcd1234';
+      const expected = '02abcd1234567890abcd1234567890abcd1234567890abcd1234567890abcd1234';
+      
+      const result = await core.addPubkeyPrefix(uncompressed);
+      expect(result).toBe(expected);
+    });
+
+    it('should add custom prefix to pubkey', async () => {
+      const core = new IglooCore();
+      const uncompressed = 'abcd1234567890abcd1234567890abcd1234567890abcd1234567890abcd1234';
+      const expected = '03abcd1234567890abcd1234567890abcd1234567890abcd1234567890abcd1234';
+      
+      const result = await core.addPubkeyPrefix(uncompressed, '03');
+      expect(result).toBe(expected);
+    });
+
+    it('should compare pubkeys after normalization', async () => {
+      const core = new IglooCore();
+      const compressed = '02abcd1234567890abcd1234567890abcd1234567890abcd1234567890abcd1234';
+      const uncompressed = 'abcd1234567890abcd1234567890abcd1234567890abcd1234567890abcd1234';
+      
+      const result = await core.comparePubkeys(compressed, uncompressed);
+      expect(result).toBe(true);
+    });
+
+    it('should return false for different pubkeys', async () => {
+      const core = new IglooCore();
+      const pubkey1 = '02abcd1234567890abcd1234567890abcd1234567890abcd1234567890abcd1234';
+      const pubkey2 = '03efgh5678901234efgh5678901234efgh5678901234efgh5678901234efgh5678';
+      
+      const result = await core.comparePubkeys(pubkey1, pubkey2);
+      expect(result).toBe(false);
+    });
+
+    it('should extract self pubkey from credentials with warnings', async () => {
+      const core = new IglooCore();
+      
+      const result = await core.extractSelfPubkey('', '', { suppressWarnings: false });
+      
+      expect(result).toHaveProperty('pubkey');
+      expect(result).toHaveProperty('warnings');
+      expect(result.pubkey).toBeNull();
+      expect(Array.isArray(result.warnings)).toBe(true);
+      expect(result.warnings.length).toBeGreaterThan(0);
+    });
+
+    it('should extract self pubkey with suppressed warnings', async () => {
+      const core = new IglooCore();
+      
+      const result = await core.extractSelfPubkey('', '', { suppressWarnings: true });
+      
+      expect(result).toHaveProperty('pubkey');
+      expect(result).toHaveProperty('warnings');
+      expect(result.pubkey).toBeNull();
+      expect(Array.isArray(result.warnings)).toBe(true);
+      expect(result.warnings.length).toBe(0); // Warnings should be suppressed
+    });
+  });
+
   describe('Method chaining and integration', () => {
     it('should work with method chaining patterns', async () => {
       const core = new IglooCore();
@@ -191,6 +262,20 @@ describe('IglooCore Convenience Class', () => {
       expect(recovered).toMatch(/^nsec1[a-z0-9]+$/);
       expect(convertedHex).toBe(nostrKeys.hexPrivateKey);
       expect(derivedPublic.npub).toBe(nostrKeys.npub);
+    });
+
+    it('should work with pubkey utilities in integration workflow', async () => {
+      const core = new IglooCore();
+      
+      // Test pubkey utilities integration
+      const testPubkey = 'abcd1234567890abcd1234567890abcd1234567890abcd1234567890abcd1234';
+      const compressed = await core.addPubkeyPrefix(testPubkey);
+      const normalized = await core.normalizePubkey(compressed);
+      const isMatch = await core.comparePubkeys(compressed, normalized);
+      
+      expect(compressed).toBe('02' + testPubkey);
+      expect(normalized).toBe(testPubkey);
+      expect(isMatch).toBe(true);
     });
 
     it('should maintain consistent state across calls', async () => {

@@ -440,36 +440,36 @@ export class IglooCore {
   /**
    * Normalize a pubkey by removing 02/03 prefix if present
    */
-  normalizePubkey(pubkey: string): string {
-    const { normalizePubkey } = require('./peer.js');
+  async normalizePubkey(pubkey: string): Promise<string> {
+    const { normalizePubkey } = await import('./peer.js');
     return normalizePubkey(pubkey);
   }
 
   /**
    * Add prefix to a pubkey if missing
    */
-  addPubkeyPrefix(pubkey: string, prefix: '02' | '03' = '02'): string {
-    const { addPubkeyPrefix } = require('./peer.js');
+  async addPubkeyPrefix(pubkey: string, prefix: '02' | '03' = '02'): Promise<string> {
+    const { addPubkeyPrefix } = await import('./peer.js');
     return addPubkeyPrefix(pubkey, prefix);
   }
 
   /**
    * Compare two pubkeys after normalization
    */
-  comparePubkeys(pubkey1: string, pubkey2: string): boolean {
-    const { comparePubkeys } = require('./peer.js');
+  async comparePubkeys(pubkey1: string, pubkey2: string): Promise<boolean> {
+    const { comparePubkeys } = await import('./peer.js');
     return comparePubkeys(pubkey1, pubkey2);
   }
 
   /**
    * Extract self pubkey from credentials with enhanced error handling
    */
-  extractSelfPubkey(
+  async extractSelfPubkey(
     groupCredential: string, 
     shareCredential: string,
     options?: { normalize?: boolean; suppressWarnings?: boolean }
-  ) {
-    const { extractSelfPubkeyFromCredentials } = require('./peer.js');
+  ): Promise<{ pubkey: string | null; warnings: string[] }> {
+    const { extractSelfPubkeyFromCredentials } = await import('./peer.js');
     return extractSelfPubkeyFromCredentials(groupCredential, shareCredential, options);
   }
 }

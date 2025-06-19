@@ -828,8 +828,9 @@ function extractPeersFromGroup(group: GroupPackage, selfPubkey: string): string[
  */
 export async function pingPeers(node: BifrostNode, timeout = DEFAULT_PING_TIMEOUT): Promise<string[]> {
   try {
-    // Use Bifrost's native ping functionality for backward compatibility
-    const result = await (node.req as any).ping();
+    // Use Bifrost's native ping functionality for backward compatibility with safe access
+    const nodeAny = node as any;
+    const result = await nodeAny.req?.ping?.();
     if (result && result.ok) {
       // Handle different possible result formats
       if (Array.isArray(result.data)) {
