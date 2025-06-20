@@ -5,7 +5,124 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.2] - 2025-01-08
+## [0.1.3] - 2025-06-19
+
+### 🚀 Added - Peer Management & Ping Functionality
+
+#### Advanced Peer Management
+- **`src/peer.ts`**: New comprehensive peer management module
+  - Real-time peer status tracking and monitoring
+  - Automatic fallback modes for enhanced reliability
+  - Credential validation and pubkey normalization utilities
+  - Professional logging with configurable warning suppression
+  - `PeerManager` class for live peer monitoring
+  - `StaticPeerManager` as fallback for static peer lists
+  - Robust peer extraction from credentials with error handling
+
+#### Comprehensive Ping Operations
+- **`src/ping.ts`**: New ping functionality module
+  - Single and batch ping operations with timeout support
+  - Continuous ping monitoring with configurable intervals
+  - Advanced ping diagnostics and health checking
+  - Credential-based pinging with automatic peer resolution
+  - Ping statistics tracking and reporting
+  - Professional error handling and retry mechanisms
+
+#### Enhanced Core API Integration
+- **Updated `src/index.ts`**: Added peer and ping exports
+  - Complete peer management function exports
+  - Full ping functionality API surface
+  - Type definitions for all new interfaces
+  - Integration with existing IglooCore convenience class
+
+#### IglooCore Class Enhancements
+- **New Peer Management Methods**: 
+  - `extractPeers()`: Extract peer information from credentials
+  - `createPeerManager()`: Create peer monitoring instances
+  - `checkPeerStatus()`: Check individual peer connectivity
+- **New Ping Methods**:
+  - `pingPeer()`: Single peer ping operations
+  - `pingPeers()`: Batch ping operations
+  - `startPingMonitoring()`: Continuous ping monitoring
+  - `pingDiagnostics()`: Advanced ping diagnostics
+
+### 📚 Documentation & Examples
+
+#### New Example Scripts
+- **`examples/peer-management.ts`**: Comprehensive peer management examples
+  - Peer extraction and status monitoring
+  - Fallback mode demonstrations
+  - Error handling and recovery patterns
+  - Advanced peer management scenarios
+- **`examples/ping-example.ts`**: Complete ping functionality showcase
+  - Single and batch ping operations
+  - Continuous monitoring examples
+  - Diagnostics and health checking
+  - Integration with IglooCore convenience methods
+
+#### Enhanced README Documentation
+- **Peer Management Section**: Detailed usage examples and API reference
+- **Ping Functionality Section**: Complete ping operation documentation
+- **Configuration Options**: Advanced configuration and customization guides
+- **Best Practices**: Production-ready patterns and error handling strategies
+- **Integration Examples**: Real-world usage scenarios and patterns
+
+### 🧪 Comprehensive Test Coverage
+
+#### New Test Suites
+- **`tests/peer.test.ts`**: Extensive peer management testing
+  - Peer extraction and validation tests
+  - Status checking and monitoring tests
+  - Error handling and edge case coverage
+  - Fallback mechanism verification
+- **`tests/ping.test.ts`**: Complete ping functionality testing
+  - Single and batch ping operation tests
+  - Monitoring lifecycle and cleanup tests
+  - Diagnostics and error handling tests
+  - Performance and reliability tests
+
+#### Enhanced Existing Tests
+- **`tests/igloocore.test.ts`**: Updated with peer and ping integration tests
+  - New method integration verification
+  - Error handling consistency tests
+  - API surface completeness validation
+
+### 🔧 Enhanced Developer Experience
+
+#### Professional Error Handling
+- **Structured Error Types**: Comprehensive error classification for peer and ping operations
+- **Graceful Degradation**: Automatic fallback to static modes when monitoring fails
+- **Configurable Logging**: Professional logging with customizable warning levels
+- **Memory Management**: Proper cleanup and resource management for monitoring operations
+
+#### Type Safety & Validation
+- **Complete TypeScript Support**: Full type definitions for all new functionality
+- **Input Validation**: Comprehensive validation for all peer and ping parameters
+- **Configuration Validation**: Proper validation of monitoring and ping configurations
+- **Error Prevention**: Type-safe operations preventing common runtime errors
+
+#### Performance & Reliability
+- **Optimized Operations**: Efficient peer discovery and ping operations
+- **Resource Management**: Proper cleanup of monitoring resources and event listeners
+- **Configurable Timeouts**: Flexible timeout configuration for all operations
+- **Robust Error Recovery**: Automatic recovery from transient network issues
+
+### 🏗️ Infrastructure
+
+#### Enhanced Build System
+- **Updated Dependencies**: Latest compatible versions for peer and ping functionality
+- **Type Exports**: Proper TypeScript type exports for all new interfaces
+- **Module Organization**: Clean separation of peer and ping concerns
+
+#### Test Infrastructure
+- **Comprehensive Mocking**: Enhanced mocking for peer and ping operations
+- **Integration Testing**: End-to-end testing of peer and ping workflows
+- **Performance Testing**: Validation of monitoring and ping performance
+- **Memory Leak Prevention**: Tests ensuring proper resource cleanup
+
+---
+
+## [0.1.2] - 2025-06-16
 
 ### 🎯 Complete Bifrost Event Handling
 
