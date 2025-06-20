@@ -9,15 +9,16 @@ A TypeScript library providing core functionality for FROSTR/Bifrost distributed
 
 ## Features
 
-- 🔑 **Keyset Management**: Generate, decode, and manage threshold signature keysets
+- 🔑 **Keyset Management**: Generate, decode, and manage threshold signature keysets using Shamir's Secret Sharing
 - 🌐 **Node Management**: Create and manage BifrostNodes with comprehensive event handling
+- 👥 **Peer Management**: Discover, monitor, and track peer status with automatic fallbacks
+- 🏓 **Ping Functionality**: Test peer connectivity and measure network latency
 - 📡 **Echo Functionality**: QR code transfers and share confirmation with visual feedback
 - 🔐 **Nostr Integration**: Complete nostr key management and format conversion utilities
 - 🛡️ **Strong Types**: Full TypeScript support with comprehensive type definitions
 - ⚡ **Error Handling**: Structured error types with detailed context
 - 🔄 **Secret Recovery**: Secure threshold-based secret key reconstruction
-- 🎯 **Validation**: Built-in validation for all inputs using Zod schemas
-- 🔍 **Comprehensive Validation**: Advanced validation for Bifrost credentials, nostr keys, and relay URLs
+- 🎯 **Validation**: Built-in validation for credentials, keys, and relay URLs
 
 ## Installation
 
@@ -44,9 +45,9 @@ npm install @frostr/igloo-core @frostr/bifrost nostr-tools
 ### Basic Usage
 
 ```typescript
-import { igloo, generateKeysetWithSecret, recoverSecretKeyFromCredentials } from '@frostr/igloo-core';
+import { generateKeysetWithSecret, recoverSecretKeyFromCredentials } from '@frostr/igloo-core';
 
-// Generate a 2-of-3 keyset
+// Generate a 2-of-3 keyset from a secret key
 const keyset = generateKeysetWithSecret(2, 3, 'your-hex-secret-key');
 
 console.log('Generated keyset:', {
@@ -63,7 +64,7 @@ const recoveredSecret = recoverSecretKeyFromCredentials(
 console.log('Recovered secret:', recoveredSecret);
 ```
 
-### Using the Convenience Class
+### Using the IglooCore Convenience Class
 
 ```typescript
 import { IglooCore } from '@frostr/igloo-core';
@@ -82,7 +83,7 @@ const node = await igloo.createNode(
   keyset.shareCredentials[0]
 );
 
-// Wait for echo confirmation
+// Wait for echo confirmation (useful for QR code transfers)
 const confirmed = await igloo.waitForEcho(
   keyset.groupCredential,
   keyset.shareCredentials[0],
@@ -91,31 +92,46 @@ const confirmed = await igloo.waitForEcho(
 
 // Get share information
 const shareInfo = await igloo.getShareInfo(keyset.shareCredentials[0]);
-console.log(`Share ${shareInfo.idx}: ${shareInfo.threshold}/${shareInfo.totalMembers}`);
+console.log(`Share ${shareInfo.idx}: threshold required for signing`);
 
-// Generate nostr keys
-const nostrKeys = await igloo.generateKeys();
-console.log('Generated keys:', {
-  nsec: nostrKeys.nsec,
-  npub: nostrKeys.npub
-});
+// Or get full share details with group context
+const fullShareInfo = await igloo.getShareDetailsWithGroup(
+  keyset.shareCredentials[0], 
+  keyset.groupCredential
+);
+console.log(`Share ${fullShareInfo.idx}: ${fullShareInfo.threshold}/${fullShareInfo.totalMembers}`);
 
-// Convert key formats
+// Convert between key formats  
 const hexKey = await igloo.convertKey(nostrKeys.nsec, 'hex');
 const npubFromHex = await igloo.convertKey(hexKey, 'npub');
 
-// Validate credentials
-const validationResult = await igloo.validateCredentials({
-  group: keyset.groupCredential,
-  shares: keyset.shareCredentials,
-  relays: igloo.defaultRelays
-});
-console.log('Credentials valid:', validationResult.isValid);
+// Enhanced node creation with state tracking
+const { node: enhancedNode, state } = await igloo.createEnhancedNode(
+  keyset.groupCredential,
+  keyset.shareCredentials[0],
+  ['wss://relay.damus.io'],
+  { connectionTimeout: 10000, autoReconnect: true }
+);
+console.log('Node state:', state);
+```
+
+### Using the Default Instance
+
+For simple use cases, you can use the pre-configured default instance:
+
+```typescript
+import { igloo } from '@frostr/igloo-core';
+
+// Uses default relays: wss://relay.damus.io, wss://relay.primal.net
+const keyset = await igloo.generateKeyset(2, 3, secretKey);
+const node = await igloo.createNode(keyset.groupCredential, keyset.shareCredentials[0]);
 ```
 
 ## Core Functions
 
 ### Keyset Management
+
+The primary purpose of this library is managing threshold signature keysets.
 
 #### `generateKeysetWithSecret(threshold, totalMembers, secretKey)`
 
@@ -141,18 +157,214 @@ const nsec = recoverSecretKeyFromCredentials(
 );
 ```
 
-#### `getShareDetails(shareCredential)`
+#### `getShareDetails(shareCredential)` / `getShareDetailsWithGroup(shareCredential, groupCredential)`
 
 Gets information about a share including index and threshold parameters.
 
 ```typescript
-import { getShareDetails } from '@frostr/igloo-core';
+import { getShareDetails, getShareDetailsWithGroup } from '@frostr/igloo-core';
 
+// Basic share info (index only)
 const details = getShareDetails(shareCredential);
-console.log(`Share ${details.idx}: ${details.threshold}/${details.totalMembers}`);
+console.log(`Share index: ${details.idx}`);
+
+// Full share info with group context
+const fullDetails = getShareDetailsWithGroup(shareCredential, groupCredential);
+console.log(`Share ${fullDetails.idx}: ${fullDetails.threshold}/${fullDetails.totalMembers}`);
+```
+
+#### Advanced Keyset Functions
+
+```typescript
+import { 
+  decodeShare, 
+  decodeGroup, 
+  validateSharesCompatibility,
+  validateShareCredentialsCompatibility 
+} from '@frostr/igloo-core';
+
+// Decode credential structures for advanced use cases
+const sharePackage = decodeShare(shareCredential);
+const groupPackage = decodeGroup(groupCredential);
+
+// Access raw threshold data
+console.log('Threshold:', groupPackage.threshold);
+console.log('Share index:', sharePackage.idx);
+
+// Validate share compatibility
+validateShareCredentialsCompatibility([
+  shareCredential1, 
+  shareCredential2
+]);
+```
+
+#### Alternative Recovery Method
+
+You can also use the lower-level `recoverSecretKey` function with decoded packages:
+
+```typescript
+import { recoverSecretKey, decodeGroup, decodeShare } from '@frostr/igloo-core';
+
+const group = decodeGroup(groupCredential);
+const shares = shareCredentials.map(decodeShare);
+
+const nsec = recoverSecretKey(group, shares);
+```
+
+### Node Management
+
+BifrostNodes handle the network communication for distributed signing.
+
+#### `createAndConnectNode(config, eventConfig?)`
+
+Creates and connects a BifrostNode. The returned Promise resolves when the node is ready for use.
+
+```typescript
+import { createAndConnectNode } from '@frostr/igloo-core';
+
+const node = await createAndConnectNode({
+  group: groupCredential,
+  share: shareCredential,
+  relays: ['wss://relay.damus.io']
+}, {
+  enableLogging: true,
+  logLevel: 'info',
+  customLogger: (level, message, data) => {
+    console.log(`[${level}] ${message}`, data);
+  }
+});
+
+// Node is ready immediately after Promise resolves
+```
+
+#### `createConnectedNode(config, eventConfig?)` - Enhanced Node Creation
+
+Creates a node with enhanced state tracking and connection management.
+
+```typescript
+import { createConnectedNode } from '@frostr/igloo-core';
+
+const result = await createConnectedNode({
+  group: groupCredential,
+  share: shareCredential,
+  relays: ['wss://relay.damus.io'],
+  connectionTimeout: 10000,
+  autoReconnect: true
+});
+
+console.log('Node state:', result.state);
+// State includes: isReady, isConnected, isConnecting, lastError, connectedRelays
+```
+
+#### Node Cleanup
+
+Always clean up nodes when done to prevent memory leaks:
+
+```typescript
+import { cleanupBifrostNode } from '@frostr/igloo-core';
+
+// Clean up properly - removes all event listeners and closes connections
+cleanupBifrostNode(node);
+```
+
+#### Event Handling
+
+The library automatically handles all Bifrost node events including:
+- Base events: `ready`, `closed`, `message`, `error`, `info`, `debug`
+- ECDH events: All sender and handler events with returns and errors
+- Signature events: Complete signing workflow coverage
+- Ping/Echo events: Full protocol support with error handling
+
+```typescript
+// Manual event handling if needed
+node.on('/echo/sender/ret', (reason) => {
+  console.log('Echo completed:', reason);
+});
+
+node.on('error', (error) => {
+  console.error('Node error:', error);
+});
+```
+
+### Echo Functionality
+
+Echo functionality enables QR code transfers and confirmation that shares have been received.
+
+#### `awaitShareEcho(groupCredential, shareCredential, options?)`
+
+Waits for an echo event on a specific share.
+
+```typescript
+import { awaitShareEcho } from '@frostr/igloo-core';
+
+try {
+  const received = await awaitShareEcho(
+    groupCredential,
+    shareCredential,
+    {
+      relays: ['wss://relay.damus.io'],
+      timeout: 30000,
+      eventConfig: { enableLogging: true }
+    }
+  );
+  console.log('Echo received!', received);
+} catch (error) {
+  console.log('No echo received within timeout');
+}
+```
+
+#### `sendEcho(groupCredential, shareCredential, options?)` 
+
+Send an echo signal to notify other devices that a share has been imported.
+
+```typescript
+import { sendEcho } from '@frostr/igloo-core';
+
+try {
+  const sent = await sendEcho(
+    groupCredential,
+    shareCredential,
+    {
+      relays: ['wss://relay.damus.io'],
+      timeout: 10000
+    }
+  );
+  console.log('Echo sent successfully!', sent);
+} catch (error) {
+  console.error('Failed to send echo:', error.message);
+}
+```
+
+#### `startListeningForAllEchoes(groupCredential, shareCredentials, callback, options?)`
+
+Starts listening for echo events on all shares in a keyset.
+
+```typescript
+import { startListeningForAllEchoes } from '@frostr/igloo-core';
+
+const listener = startListeningForAllEchoes(
+  groupCredential,
+  shareCredentials,
+  (shareIndex, shareCredential) => {
+    console.log(`Echo received for share ${shareIndex}!`);
+    // You can now notify your UI that this share was imported
+  },
+  {
+    relays: ['wss://relay.damus.io'],
+    eventConfig: { enableLogging: true }
+  }
+);
+
+// Check if listener is active
+console.log('Listener active:', listener.isActive);
+
+// Cleanup when done
+listener.cleanup();
 ```
 
 ### Nostr Utilities
+
+Complete nostr key management and format conversion.
 
 #### `generateNostrKeyPair()`
 
@@ -170,28 +382,20 @@ console.log({
 });
 ```
 
-#### `nsecToHex(nsec)` / `hexToNsec(hex)`
+#### Key Format Conversion
 
-Convert between nsec and hex formats for private keys.
-
-```typescript
-import { nsecToHex, hexToNsec } from '@frostr/igloo-core';
-
-const nsec = 'nsec1...';
-const hexPrivateKey = nsecToHex(nsec);
-const backToNsec = hexToNsec(hexPrivateKey);
-```
-
-#### `npubToHex(npub)` / `hexToNpub(hex)`
-
-Convert between npub and hex formats for public keys.
+Convert between nsec/npub and hex formats:
 
 ```typescript
-import { npubToHex, hexToNpub } from '@frostr/igloo-core';
+import { nsecToHex, hexToNsec, npubToHex, hexToNpub } from '@frostr/igloo-core';
 
-const npub = 'npub1...';
-const hexPublicKey = npubToHex(npub);
-const backToNpub = hexToNpub(hexPublicKey);
+// Private key conversion
+const hexPrivateKey = nsecToHex('nsec1...');
+const nsec = hexToNsec(hexPrivateKey);
+
+// Public key conversion
+const hexPublicKey = npubToHex('npub1...');
+const npub = hexToNpub(hexPublicKey);
 ```
 
 #### `derivePublicKey(privateKey)`
@@ -208,74 +412,259 @@ console.log({
 });
 ```
 
-### Node Management
+## Peer Management
 
-#### `createAndConnectNode(config, eventConfig?)`
+The library provides peer management capabilities for discovering and monitoring other participants in your signing group.
 
-Creates and connects a BifrostNode with optional event configuration.
+### Basic Peer Operations
 
 ```typescript
-import { createAndConnectNode } from '@frostr/igloo-core';
+import { 
+  extractPeersFromCredentials, 
+  checkPeerStatus,
+  createPeerManagerRobust 
+} from '@frostr/igloo-core';
 
-const node = await createAndConnectNode({
-  group: groupCredential,
-  share: shareCredential,
-  relays: ['wss://relay.damus.io']
-}, {
-  enableLogging: true,
-  logLevel: 'info',
-  customLogger: (level, message, data) => {
-    console.log(`[${level}] ${message}`, data);
+// Extract peer list from credentials
+const peers = extractPeersFromCredentials(groupCredential, shareCredential);
+console.log('Peers in group:', peers);
+
+// Check current peer status
+const peerStatus = await checkPeerStatus(node, groupCredential, shareCredential);
+peerStatus.forEach(peer => {
+  console.log(`${peer.pubkey}: ${peer.status}`);
+});
+
+// Create robust peer manager with automatic fallbacks
+const result = await createPeerManagerRobust(node, groupCredential, shareCredential, {
+  fallbackMode: 'static',  // Always provide peer list even if monitoring fails
+  autoMonitor: true,
+  suppressWarnings: true,  // Clean logging in production
+  onError: (error, context) => {
+    console.warn(`Peer issue in ${context}:`, error.message);
   }
 });
-```
 
-### Echo Functionality
-
-#### `awaitShareEcho(groupCredential, shareCredential, options?)`
-
-Waits for an echo event on a specific share, useful for QR code transfers.
-
-```typescript
-import { awaitShareEcho } from '@frostr/igloo-core';
-
-try {
-  const received = await awaitShareEcho(
-    groupCredential,
-    shareCredential,
-    {
-      relays: ['wss://relay.damus.io'],
-      timeout: 30000,
-      eventConfig: { enableLogging: true }
-    }
-  );
-  console.log('Echo received!', received);
-} catch (error) {
-  console.log('Echo timeout or error:', error.message);
+if (result.success) {
+  const status = result.peerManager.getPeerStatus();
+  console.log(`✅ ${result.mode} mode: ${status.totalPeers} peers found`);
+  
+  if (result.mode === 'full') {
+    console.log(`🟢 ${status.onlineCount} peers online`);
+  }
+  
+  // Handle any warnings
+  if (result.warnings?.length) {
+    result.warnings.forEach(warning => console.warn('⚠️', warning));
+  }
+} else {
+  console.error('❌ Peer management failed:', result.error);
 }
 ```
 
-#### `startListeningForAllEchoes(groupCredential, shareCredentials, callback, options?)`
+### PeerManager Class
 
-Starts listening for echo events on all shares in a keyset.
+For advanced peer management with real-time monitoring:
 
 ```typescript
-import { startListeningForAllEchoes } from '@frostr/igloo-core';
+import { createPeerManager } from '@frostr/igloo-core';
 
-const listener = startListeningForAllEchoes(
+const peerManager = await createPeerManager(
+  node,
   groupCredential,
-  shareCredentials,
-  (shareIndex, shareCredential) => {
-    console.log(`Echo received for share ${shareIndex}!`);
-  },
+  shareCredential,
   {
-    relays: ['wss://relay.damus.io', 'wss://relay.primal.net'],
-    eventConfig: { enableLogging: true }
+    pingInterval: 30000,    // Ping every 30 seconds
+    autoMonitor: true,
+    onPeerStatusChange: (peer) => {
+      console.log(`Peer ${peer.pubkey} is now ${peer.status}`);
+    }
   }
 );
 
+// Get peer information
+const allPeers = peerManager.getAllPeers();
+const onlinePeers = peerManager.getOnlinePeers();
+const isOnline = peerManager.isPeerOnline(peerPubkey);
+
+// Manual ping
+const pingResults = await peerManager.pingPeers();
+
 // Cleanup when done
-listener.cleanup();
+peerManager.cleanup();
+```
+
+### Pubkey Utilities
+
+The library handles pubkey format normalization automatically throughout, but utilities are available:
+
+```typescript
+import { 
+  normalizePubkey, 
+  addPubkeyPrefix, 
+  comparePubkeys,
+  extractSelfPubkeyFromCredentials 
+} from '@frostr/igloo-core';
+
+// Normalize pubkeys (remove 02/03 prefix)
+const normalized = normalizePubkey('02abcd1234...'); // Returns 'abcd1234...'
+
+// Add prefix (convert to compressed format)
+const withPrefix = addPubkeyPrefix('abcd1234...'); // Returns '02abcd1234...'
+
+// Compare pubkeys (handles mixed formats)
+const isMatch = comparePubkeys('02abcd1234...', 'abcd1234...'); // Returns true
+
+// Extract self pubkey from credentials
+const result = extractSelfPubkeyFromCredentials(groupCredential, shareCredential, {
+  normalize: true,
+  suppressWarnings: true
+});
+if (result.pubkey) {
+  console.log('Self pubkey:', result.pubkey);
+}
+```
+
+## Ping Functionality
+
+Test peer connectivity and measure network latency.
+
+```typescript
+import { pingPeer, pingPeers, createPingMonitor } from '@frostr/igloo-core';
+
+// Ping a single peer
+const result = await pingPeer(node, peerPubkey, { timeout: 5000 });
+if (result.success) {
+  console.log(`Peer responded in ${result.latency}ms`);
+  console.log(`Policy: send=${result.policy?.send}, recv=${result.policy?.recv}`);
+} else {
+  console.log(`Ping failed: ${result.error}`);
+}
+
+// Ping multiple peers
+const results = await pingPeers(node, peerPubkeys, { timeout: 5000 });
+const onlineCount = results.filter(r => r.success).length;
+console.log(`${onlineCount}/${results.length} peers online`);
+
+// Real-time monitoring
+const monitor = createPingMonitor(node, peerPubkeys, {
+  interval: 30000,
+  timeout: 5000,
+  onPingResult: (result) => {
+    console.log(`${result.pubkey}: ${result.success ? 'online' : 'offline'}`);
+  },
+  onError: (error, context) => {
+    console.warn('Monitor error:', error.message);
+  }
+});
+
+monitor.start();
+// Remember to monitor.stop() and monitor.cleanup() when done
+```
+
+### Advanced Ping Features
+
+```typescript
+import { runPingDiagnostics, pingPeersFromCredentials } from '@frostr/igloo-core';
+
+// Network diagnostics with multiple rounds
+const diagnostics = await runPingDiagnostics(node, peerPubkeys, {
+  rounds: 3,
+  interval: 2000,
+  timeout: 5000
+});
+
+console.log(`Success rate: ${diagnostics.summary.successRate.toFixed(1)}%`);
+console.log(`Average latency: ${diagnostics.summary.averageLatency.toFixed(1)}ms`);
+
+// Ping peers extracted from credentials
+const results = await pingPeersFromCredentials(groupCredential, shareCredential, {
+  timeout: 5000,
+  relays: ['wss://relay.damus.io']
+});
+```
+
+## Validation
+
+The library provides validation for all credential types and formats.
+
+```typescript
+import { 
+  validateShare, 
+  validateGroup, 
+  validateRelay,
+  validateCredentialSet,
+  VALIDATION_CONSTANTS 
+} from '@frostr/igloo-core';
+
+// Individual validation
+const shareResult = validateShare('bfshare1...');
+const groupResult = validateGroup('bfgroup1...');
+const relayResult = validateRelay('relay.damus.io');
+
+console.log('Valid share:', shareResult.isValid);
+console.log('Normalized relay:', relayResult.normalized); // 'wss://relay.damus.io'
+
+// Batch validation
+const result = validateCredentialSet({
+  group: 'bfgroup1...',
+  shares: ['bfshare1...', 'bfshare1...'],
+  relays: ['relay.damus.io', 'wss://relay.primal.net']
+});
+
+console.log('All valid:', result.isValid);
+if (!result.isValid) {
+  console.log('Errors:', result.errors);
+}
+
+// Access validation constants
+console.log('Share data size:', VALIDATION_CONSTANTS.SHARE_DATA_SIZE);
+console.log('Prefixes:', {
+  share: VALIDATION_CONSTANTS.BFSHARE_HRP,
+  group: VALIDATION_CONSTANTS.BFGROUP_HRP
+});
+```
+
+### Advanced Validation
+
+```typescript
+import { 
+  validateWithOptions, 
+  validateRelayList,
+  validateMinimumShares,
+  validateNsec,
+  validateHexPrivkey,
+  validateBfcred 
+} from '@frostr/igloo-core';
+
+// Validation with options
+const validated = validateWithOptions({
+  group: 'bfgroup1...',
+  shares: ['bfshare1...'],
+  relays: ['relay.damus.io']
+}, {
+  strict: true,
+  normalizeRelays: true,
+  requireMinShares: 2
+});
+
+// Individual credential validation
+const nsecValid = validateNsec('nsec1...');
+const hexValid = validateHexPrivkey('67dea2ed018072d675f5415ecfaed7d2597555e202d85b3d65ea4e58d2d92ffa');
+const bfcredValid = validateBfcred('bfcred1...');
+
+// Minimum shares validation
+const minSharesValid = validateMinimumShares(shareCredentials, 2);
+
+// Relay list validation with normalization
+const relayResult = validateRelayList([
+  'relay.damus.io',
+  'https://relay.primal.net/',
+  'wss://relay.snort.social'
+]);
+console.log('Normalized relays:', relayResult.normalizedRelays);
+console.log('Valid relays:', relayResult.validRelays);
+console.log('Errors:', relayResult.errors);
 ```
 
 ## Error Handling
@@ -287,8 +676,8 @@ import {
   KeysetError, 
   NodeError, 
   EchoError, 
-  RecoveryError,
-  NostrError 
+  NostrError,
+  BifrostValidationError 
 } from '@frostr/igloo-core';
 
 try {
@@ -296,365 +685,88 @@ try {
 } catch (error) {
   if (error instanceof KeysetError) {
     console.error('Keyset error:', error.message);
-    console.error('Details:', error.details);
     console.error('Error code:', error.code);
+    console.error('Details:', error.details);
+  }
+}
+
+// Validation errors
+try {
+  validateShare('invalid-share');
+} catch (error) {
+  if (error instanceof BifrostValidationError) {
+    console.error('Validation failed:', error.message);
+    console.error('Field:', error.field);
   }
 }
 ```
 
-## Type Definitions
+## React Integration Best Practices
 
-### Core Types
-
-```typescript
-interface KeysetCredentials {
-  groupCredential: string;
-  shareCredentials: string[];
-}
-
-interface ShareDetails {
-  idx: number;
-  threshold: number;
-  totalMembers: number;
-}
-
-interface NostrKeyPair {
-  nsec: string;
-  npub: string;
-  hexPrivateKey: string;
-  hexPublicKey: string;
-}
-
-interface NodeConfig {
-  group: string;
-  share: string;
-  relays: string[];
-}
-
-interface EchoListener {
-  cleanup: () => void;
-  isActive: boolean;
-}
-```
-
-### Event Configuration
+### Proper Node Lifecycle Management
 
 ```typescript
-interface NodeEventConfig {
-  enableLogging?: boolean;
-  logLevel?: 'debug' | 'info' | 'warn' | 'error';
-  customLogger?: (level: string, message: string, data?: any) => void;
-}
-```
+import React, { useState, useEffect, useRef } from 'react';
+import { createAndConnectNode, cleanupBifrostNode } from '@frostr/igloo-core';
 
-## Validation
+function MyComponent({ groupCredential, shareCredential }) {
+  const [isConnected, setIsConnected] = useState(false);
+  const nodeRef = useRef(null);
 
-The library provides comprehensive validation for all FROSTR/Bifrost components:
+  useEffect(() => {
+    // Cleanup on unmount only
+    return () => {
+      if (nodeRef.current) {
+        cleanupBifrostNode(nodeRef.current);
+      }
+    };
+  }, []); // Empty dependency array is crucial
 
-### Individual Validation Functions
+  const handleConnect = async () => {
+    try {
+      const node = await createAndConnectNode({
+        group: groupCredential,
+        share: shareCredential,
+        relays: ['wss://relay.damus.io']
+      });
 
-```typescript
-import { 
-  validateNsec, 
-  validateHexPrivkey, 
-  validateShare, 
-  validateGroup, 
-  validateRelay,
-  validateBfcred,
-  VALIDATION_CONSTANTS
-} from '@frostr/igloo-core';
+      nodeRef.current = node;
+      setIsConnected(true); // Node is ready immediately
 
-// Validate nostr keys
-const nsecResult = validateNsec('nsec1...');
-console.log('Valid nsec:', nsecResult.isValid);
+      // Set up event listeners for state changes
+      node.on('closed', () => setIsConnected(false));
+      node.on('error', () => setIsConnected(false));
 
-const hexResult = validateHexPrivkey('67dea2ed018072d675f5415ecfaed7d2597555e202d85b3d65ea4e58d2d92ffa');
-console.log('Valid hex:', hexResult.isValid);
-
-// Validate Bifrost credentials
-const shareResult = validateShare('bfshare1...');
-const groupResult = validateGroup('bfgroup1...');
-const credResult = validateBfcred('bfcred1...');
-
-// Validate and normalize relay URLs
-const relayResult = validateRelay('relay.damus.io');
-console.log('Normalized:', relayResult.normalized); // 'wss://relay.damus.io'
-```
-
-### Batch Validation
-
-```typescript
-import { validateCredentialSet, validateRelayList } from '@frostr/igloo-core';
-
-// Validate complete credential sets
-const result = validateCredentialSet({
-  group: 'bfgroup1...',
-  shares: ['bfshare1...', 'bfshare1...'],
-  relays: ['wss://relay.damus.io', 'relay.primal.net']
-});
-
-console.log('All valid:', result.isValid);
-console.log('Errors:', result.errors);
-
-// Validate and normalize relay lists
-const relayListResult = validateRelayList([
-  'relay.damus.io',
-  'https://relay.primal.net/',
-  'wss://relay.snort.social'
-]);
-console.log('Normalized relays:', relayListResult.normalizedRelays);
-```
-
-### Advanced Validation Options
-
-```typescript
-import { validateWithOptions } from '@frostr/igloo-core';
-
-const validatedCreds = validateWithOptions(
-  {
-    group: 'bfgroup1...',
-    shares: ['bfshare1...'],
-    relays: ['relay.damus.io', 'https://relay.primal.net/']
-  },
-  {
-    normalizeRelays: true,      // Auto-normalize relay URLs
-    requireMinShares: 2,        // Enforce minimum share count
-    strict: true                // Strict format validation
-  }
-);
-
-console.log('Valid:', validatedCreds.isValid);
-console.log('Normalized relays:', validatedCreds.relays);
-```
-
-### Using IglooCore Validation Methods
-
-```typescript
-import { IglooCore } from '@frostr/igloo-core';
-
-const igloo = new IglooCore();
-
-// Validate individual credentials
-const shareValid = await igloo.validateCredential('bfshare1...', 'share');
-
-// Validate relay lists with normalization
-const relayResult = await igloo.validateRelays(['relay.damus.io']);
-
-// Validate complete credential sets
-const fullValidation = await igloo.validateCredentials({
-  group: 'bfgroup1...',
-  shares: ['bfshare1...'],
-  relays: ['relay.damus.io']
-});
-
-// Advanced validation with options
-const advanced = await igloo.validateWithOptions(credentials, {
-  normalizeRelays: true,
-  requireMinShares: 2
-});
-```
-
-### Validation Constants
-
-Access validation constants for custom validation logic:
-
-```typescript
-import { VALIDATION_CONSTANTS } from '@frostr/igloo-core';
-
-console.log('Share data size:', VALIDATION_CONSTANTS.SHARE_DATA_SIZE);
-console.log('Bifrost prefixes:', {
-  share: VALIDATION_CONSTANTS.BFSHARE_HRP,
-  group: VALIDATION_CONSTANTS.BFGROUP_HRP,
-  cred: VALIDATION_CONSTANTS.BFCRED_HRP
-});
-```
-
-## Best Practices
-
-### ✅ Node Lifecycle & Events
-
-When using `createAndConnectNode()`, the Promise resolves when the node is ready and connected. The node is immediately ready for use:
-
-```typescript
-// ✅ Correct - Node is ready immediately after Promise resolves
-const node = await createAndConnectNode({ group, share, relays });
-setNodeReady(true); // Safe to set state immediately
-
-// Set up event listeners for future state changes
-node.on('closed', () => setNodeReady(false));
-node.on('error', () => setNodeReady(false));
-```
-
-**⚠️ Race Condition Warning**: The `'ready'` event may fire before your event listeners are attached. Always assume the node is ready when `createAndConnectNode()` resolves.
-
-```typescript
-// ❌ Avoid - May miss the ready event due to race condition
-const node = await createAndConnectNode({ group, share, relays });
-node.on('ready', () => setNodeReady(true)); // This may never fire!
-```
-
-### 🔧 React Integration Patterns
-
-#### Proper useEffect Usage
-
-```typescript
-// ✅ Correct - Only cleanup on unmount
-useEffect(() => {
-  return () => {
-    if (nodeRef.current) {
-      cleanupNode();
+    } catch (error) {
+      console.error('Connection failed:', error);
+      setIsConnected(false);
     }
   };
-}, []); // Empty dependency array prevents cleanup loops
-```
 
-```typescript
-// ❌ Wrong - Causes cleanup on every state change
-useEffect(() => {
-  return () => cleanupNode();
-}, [isRunning, isConnecting]); // Triggers cleanup unnecessarily
-```
-
-#### Complete Node Cleanup
-
-```typescript
-const cleanupNode = () => {
-  if (nodeRef.current) {
-    try {
-      // Remove all event listeners before disconnecting
-      nodeRef.current.off('ready');
-      nodeRef.current.off('closed');
-      nodeRef.current.off('error');
-      // ... remove other listeners
-      
-      // Disconnect the node
-      nodeRef.current.close();
-      nodeRef.current = null;
-    } catch (error) {
-      console.warn('Cleanup error:', error);
-    }
-  }
-};
-```
-
-#### Forwarding Controls with useImperativeHandle
-
-```typescript
-export interface SignerHandle {
-  stopSigner: () => Promise<void>;
-}
-
-const Signer = forwardRef<SignerHandle, SignerProps>(({ }, ref) => {
-  useImperativeHandle(ref, () => ({
-    stopSigner: async () => {
-      if (isSignerRunning) {
-        await handleStopSigner();
-      }
-    }
-  }));
-  
-  // ... component implementation
-});
-```
-
-### 🔍 Property Access Guidelines
-
-- **`node.client`**: Read-only property - do not attempt to modify
-- **Event Handlers**: Always remove event listeners before disconnecting
-- **State Management**: Set ready state immediately after `createAndConnectNode()` resolves
-
-### 🛠️ Error Handling Best Practices
-
-```typescript
-try {
-  const node = await createAndConnectNode({ group, share, relays });
-  
-  // Handle successful connection
-  setIsConnected(true);
-  
-  // Set up error handlers for runtime issues
-  node.on('error', (error) => {
-    console.error('Node error:', error);
-    setIsConnected(false);
-  });
-  
-} catch (error) {
-  // Handle connection failures
-  console.error('Failed to connect:', error);
-  setIsConnected(false);
+  return (
+    <div>
+      <div>Status: {isConnected ? 'Connected' : 'Disconnected'}</div>
+      <button onClick={handleConnect} disabled={isConnected}>
+        Connect
+      </button>
+    </div>
+  );
 }
 ```
 
-### 🎯 Comprehensive Event Handling
+**⚠️ Important Notes**:
+- The `'ready'` event may fire before your listeners are attached
+- Always assume the node is ready when `createAndConnectNode()` resolves
+- Use empty dependency arrays in useEffect to prevent cleanup loops
+- Always clean up nodes to prevent memory leaks
 
-The library now provides complete coverage of all Bifrost node events, including:
-
-- **Base Events**: `ready`, `closed`, `message`, `bounced`, `error`, `info`, `debug`, and wildcard `*`
-- **ECDH Events**: All sender and handler events including return and error cases
-- **Signature Events**: Complete signing workflow event coverage
-- **Ping Events**: Full ping protocol including return and error handling
-- **Echo Events**: Complete echo functionality with return and error events
-
-```typescript
-// All events are automatically handled with proper logging
-const node = await createAndConnectNode({ group, share, relays }, {
-  enableLogging: true,
-  logLevel: 'debug', // See all events
-  customLogger: (level, message, data) => {
-    console.log(`[${level}] ${message}`, data);
-  }
-});
-
-// Or handle specific events manually
-node.on('/echo/sender/ret', (reason: string) => {
-  console.log('Echo operation completed:', reason);
-});
-
-node.on('/ping/sender/err', (reason: string, msg: any) => {
-  console.error('Ping failed:', reason, msg);
-});
-```
-
-### 📋 Validation Best Practices
-
-Use comprehensive validation before creating nodes:
-
-```typescript
-import { validateShare, validateGroup, decodeShare, decodeGroup } from '@frostr/igloo-core';
-
-// Basic validation
-const shareValidation = validateShare(shareCredential);
-const groupValidation = validateGroup(groupCredential);
-
-if (!shareValidation.isValid || !groupValidation.isValid) {
-  throw new Error('Invalid credentials');
-}
-
-// Deep validation with decoding
-try {
-  const decodedShare = decodeShare(shareCredential);
-  const decodedGroup = decodeGroup(groupCredential);
-  
-  // Additional structure validation
-  if (typeof decodedShare.idx !== 'number' || 
-      typeof decodedGroup.threshold !== 'number') {
-    throw new Error('Invalid credential structure');
-  }
-} catch (error) {
-  throw new Error(`Credential validation failed: ${error.message}`);
-}
-```
-
-### 🎯 Complete React Signer Example
-
-Here's a complete example implementing all the best practices:
+### Complete React Example
 
 ```typescript
 import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import { 
   createAndConnectNode, 
   cleanupBifrostNode, 
-  isNodeReady,
   validateShare, 
   validateGroup 
 } from '@frostr/igloo-core';
@@ -686,9 +798,9 @@ const Signer = forwardRef<SignerHandle, SignerProps>(({
         cleanupBifrostNode(nodeRef.current);
       }
     };
-  }, []); // Empty dependency array is crucial
+  }, []);
 
-  // Expose stop method to parent
+  // Expose control methods to parent
   useImperativeHandle(ref, () => ({
     stopSigner: async () => {
       if (isRunning) {
@@ -710,7 +822,6 @@ const Signer = forwardRef<SignerHandle, SignerProps>(({
       setIsConnecting(true);
       setError(undefined);
 
-      // Create and connect node
       const node = await createAndConnectNode({
         group: groupCredential,
         share: shareCredential,
@@ -718,12 +829,10 @@ const Signer = forwardRef<SignerHandle, SignerProps>(({
       });
 
       nodeRef.current = node;
-
-      // Node is ready immediately after Promise resolves
       setIsRunning(true);
       setIsConnecting(false);
 
-      // Set up listeners for future state changes
+      // Set up listeners for state changes
       node.on('closed', () => {
         setIsRunning(false);
         setIsConnecting(false);
@@ -758,8 +867,10 @@ const Signer = forwardRef<SignerHandle, SignerProps>(({
 
   return (
     <div>
-      <div>Status: {isRunning ? 'Running' : isConnecting ? 'Connecting...' : 'Stopped'}</div>
-      {error && <div>Error: {error}</div>}
+      <div>
+        Status: {isRunning ? 'Running' : isConnecting ? 'Connecting...' : 'Stopped'}
+      </div>
+      {error && <div style={{ color: 'red' }}>Error: {error}</div>}
       <button 
         onClick={isRunning ? handleStop : handleStart}
         disabled={isConnecting}
@@ -773,7 +884,7 @@ const Signer = forwardRef<SignerHandle, SignerProps>(({
 export default Signer;
 ```
 
-## Demo
+## Demo and Examples
 
 Run the included demo to see all functionality in action:
 
@@ -785,33 +896,45 @@ npm install
 npm run demo
 ```
 
-Or try it directly in your project:
-
-```bash
-npm install @frostr/igloo-core
-```
-
 The demo showcases:
 - Keyset generation and recovery
 - Echo functionality and timeouts
 - Node management and connections
+- Peer management and monitoring
 - Error handling scenarios
+
+### Additional Examples
+
+The `examples/` directory contains comprehensive demonstrations:
+
+```bash
+# Run specific examples
+npx ts-node --esm examples/ping-example.ts
+npx ts-node --esm examples/peer-management.ts
+npx ts-node --esm examples/validation-example.ts
+```
 
 ## API Reference
 
-### Exports
+### Main Exports
 
 ```typescript
-// Main convenience class
+// Main convenience class and default instance
 export class IglooCore
-export const igloo: IglooCore
+export const igloo: IglooCore  // Pre-configured default instance
 
 // Keyset functions
 export function generateKeysetWithSecret(threshold: number, totalMembers: number, secretKey: string): KeysetCredentials
 export function recoverSecretKeyFromCredentials(groupCredential: string, shareCredentials: string[]): string
+export function recoverSecretKey(group: GroupPackage, shares: SharePackage[]): string
 export function getShareDetails(shareCredential: string): ShareDetails
+export function getShareDetailsWithGroup(shareCredential: string, groupCredential: string): ShareDetailsWithGroup
 export function decodeShare(shareCredential: string): SharePackage
 export function decodeGroup(groupCredential: string): GroupPackage
+export function validateKeysetParams(params: KeysetParams): void
+export function validateSecretKey(secretKey: string): void
+export function validateSharesCompatibility(shares: SharePackage[]): void
+export function validateShareCredentialsCompatibility(shareCredentials: string[]): void
 
 // Node functions
 export function createBifrostNode(config: NodeConfig, eventConfig?: NodeEventConfig): BifrostNode
@@ -821,10 +944,13 @@ export function connectNode(node: BifrostNode): Promise<void>
 export function closeNode(node: BifrostNode): void
 export function isNodeReady(node: BifrostNode): boolean
 export function cleanupBifrostNode(node: BifrostNode): void
+export function setupNodeEvents(node: BifrostNode, config: NodeEventConfig): void
 
 // Echo functions
 export function awaitShareEcho(groupCredential: string, shareCredential: string, options?: EchoOptions): Promise<boolean>
 export function startListeningForAllEchoes(groupCredential: string, shareCredentials: string[], callback: EchoReceivedCallback, options?: EchoOptions): EchoListener
+export function sendEcho(groupCredential: string, shareCredential: string, options?: EchoOptions): Promise<boolean>
+export const DEFAULT_ECHO_RELAYS: string[]
 
 // Nostr functions
 export function generateNostrKeyPair(): NostrKeyPair
@@ -836,12 +962,31 @@ export function derivePublicKey(privateKey: string): { npub: string; hexPublicKe
 export function validateHexKey(hex: string, keyType?: 'private' | 'public'): void
 export function validateNostrKey(key: string, expectedType?: 'nsec' | 'npub'): void
 
-// Validation functions
-export function validateKeysetParams(params: KeysetParams): void
-export function validateSecretKey(secretKey: string): void
-export function validateSharesCompatibility(shares: SharePackage[]): void
+// Peer management functions
+export class PeerManager
+export class StaticPeerManager
+export function createPeerManager(node: BifrostNode, groupCredential: string, shareCredential: string, config?: Partial<PeerMonitorConfig>): Promise<PeerManager>
+export function createPeerManagerRobust(node: BifrostNode, groupCredential: string, shareCredential: string, config?: Partial<EnhancedPeerMonitorConfig>): Promise<PeerManagerResult>
+export function extractPeersFromCredentials(groupCredential: string, shareCredential: string): string[]
+export function checkPeerStatus(node: BifrostNode, groupCredential: string, shareCredential: string): Promise<{ pubkey: string; status: 'online' | 'offline' }[]>
 
-// Comprehensive validation functions
+// Pubkey utilities
+export function normalizePubkey(pubkey: string): string
+export function addPubkeyPrefix(pubkey: string, prefix?: '02' | '03'): string
+export function comparePubkeys(pubkey1: string, pubkey2: string): boolean
+export function extractSelfPubkeyFromCredentials(groupCredential: string, shareCredential: string, options?: { normalize?: boolean; suppressWarnings?: boolean }): { pubkey: string | null; warnings: string[] }
+
+// Ping functions
+export function pingPeer(node: BifrostNode, peerPubkey: string, options?: { timeout?: number; eventConfig?: NodeEventConfig }): Promise<PingResult>
+export function pingPeers(node: BifrostNode, peerPubkeys: string[], options?: { timeout?: number; eventConfig?: NodeEventConfig }): Promise<PingResult[]>
+export function createPingMonitor(node: BifrostNode, peerPubkeys: string[], config?: Partial<PingMonitorConfig>): PingMonitor
+export function runPingDiagnostics(node: BifrostNode, peerPubkeys: string[], options?: { rounds?: number; timeout?: number; interval?: number; eventConfig?: NodeEventConfig }): Promise<DiagnosticsResult>
+export function pingPeersFromCredentials(groupCredential: string, shareCredential: string, options?: { relays?: string[]; timeout?: number; eventConfig?: NodeEventConfig }): Promise<PingResult[]>
+export const DEFAULT_PING_RELAYS: string[]
+export const DEFAULT_PING_TIMEOUT: number
+export const DEFAULT_PING_INTERVAL: number
+
+// Validation functions
 export function validateNsec(nsec: string): ValidationResult
 export function validateHexPrivkey(hexPrivkey: string): ValidationResult
 export function validateShare(share: string): ValidationResult
@@ -849,8 +994,8 @@ export function validateGroup(group: string): ValidationResult
 export function validateRelay(relay: string): ValidationResult
 export function validateBfcred(cred: string): ValidationResult
 export function validateCredentialFormat(credential: string, type: 'share' | 'group' | 'cred'): ValidationResult
+export function validateCredentialSet(credentials: { group: string; shares: string[]; relays: string[] }): CredentialSetValidationResult
 export function validateRelayList(relays: string[]): RelayValidationResult
-export function validateCredentialSet(credentials: CredentialSet): CredentialSetValidationResult
 export function validateMinimumShares(shares: string[], requiredThreshold: number): ValidationResult
 export function validateWithOptions(credentials: BifrostCredentials, options?: ValidationOptions): ValidatedCredentials
 export const VALIDATION_CONSTANTS: ValidationConstants
@@ -858,54 +1003,164 @@ export const VALIDATION_CONSTANTS: ValidationConstants
 // Error classes
 export class IglooError extends Error
 export class KeysetError extends IglooError
-export class NodeError extends IglooError
+export class NodeError extends IglooError  
 export class EchoError extends IglooError
 export class RecoveryError extends IglooError
 export class NostrError extends IglooError
 export class BifrostValidationError extends IglooError
 export class NostrValidationError extends IglooError
+```
 
-// All types and interfaces
-export * from './types'
+### Type Definitions
+
+```typescript
+export interface KeysetCredentials {
+  groupCredential: string;
+  shareCredentials: string[];
+}
+
+export interface ShareDetails {
+  idx: number;
+}
+
+export interface ShareDetailsWithGroup {
+  idx: number;
+  threshold: number;
+  totalMembers: number;
+}
+
+export interface KeysetParams {
+  threshold: number;
+  totalMembers: number;
+}
+
+export interface NostrKeyPair {
+  nsec: string;
+  npub: string;
+  hexPrivateKey: string;
+  hexPublicKey: string;
+}
+
+export interface NodeConfig {
+  group: string;
+  share: string;
+  relays: string[];
+}
+
+export interface EnhancedNodeConfig extends NodeConfig {
+  connectionTimeout?: number;
+  autoReconnect?: boolean;
+}
+
+export interface NodeState {
+  isReady: boolean;
+  isConnected: boolean;
+  isConnecting: boolean;
+  lastError?: string;
+  connectedRelays: string[];
+}
+
+export interface Peer {
+  pubkey: string;
+  status: 'online' | 'offline' | 'unknown';
+  lastSeen?: Date;
+  latency?: number;
+  allowSend: boolean;
+  allowReceive: boolean;
+}
+
+export interface PingResult {
+  success: boolean;
+  pubkey: string;
+  latency?: number;
+  policy?: { send: boolean; recv: boolean };
+  error?: string;
+  timestamp: Date;
+}
+
+export interface PingMonitor {
+  start: () => void;
+  stop: () => void;
+  isRunning: boolean;
+  ping: () => Promise<PingResult[]>;
+  cleanup: () => void;
+}
+
+export interface PingMonitorConfig {
+  interval: number;
+  timeout: number;
+  onPingResult?: (result: PingResult) => void;
+  onError?: (error: Error, context: string) => void;
+  relays?: string[];
+  eventConfig?: NodeEventConfig;
+}
+
+export interface PeerMonitorConfig {
+  pingInterval: number;
+  pingTimeout: number;
+  autoMonitor: boolean;
+  onPeerStatusChange?: (peer: Peer) => void;
+  onError?: (error: Error, context: string) => void;
+  enableLogging?: boolean;
+  suppressWarnings?: boolean;
+  customLogger?: (level: 'info' | 'warn' | 'error' | 'debug', message: string, data?: any) => void;
+}
+
+export interface PeerManagerResult {
+  success: boolean;
+  peerManager?: PeerManager | StaticPeerManager;
+  mode: 'full' | 'static' | 'failed';
+  warnings?: string[];
+  error?: string;
+}
+
+export interface PeerValidationResult {
+  isValid: boolean;
+  peerCount: number;
+  peers: string[];
+  selfPubkey?: string;
+  warnings: string[];
+  error?: string;
+}
+
+export interface ValidationResult {
+  isValid: boolean;
+  message?: string;
+  normalized?: string;
+}
+
+export interface RelayValidationResult extends ValidationResult {
+  normalizedRelays?: string[];
+  validRelays?: string[];
+  errors?: string[];
+}
+
+export interface BifrostCredentials {
+  group: string;
+  shares: string[];
+  relays: string[];
+}
+
+export interface ValidatedCredentials extends BifrostCredentials {
+  isValid: boolean;
+  errors: string[];
+}
+
+export interface EchoListener {
+  cleanup: () => void;
+  isActive: boolean;
+}
+
+export interface NodeEventConfig {
+  enableLogging?: boolean;
+  logLevel?: 'debug' | 'info' | 'warn' | 'error';
+  customLogger?: (level: string, message: string, data?: any) => void;
+}
 ```
 
 ## Contributing
 
-We welcome contributions to `@frostr/igloo-core`! This library is actively maintained as part of the FROSTR ecosystem.
-
-### Development Setup
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/FROSTR-ORG/igloo-core.git
-   cd igloo-core
-   ```
-
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-3. Build the project:
-   ```bash
-   npm run build
-   ```
-
-4. Run tests:
-   ```bash
-   npm test
-   ```
-
-### Submitting Changes
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests for new functionality
-5. Ensure all tests pass
-6. Submit a pull request
-
-For questions or discussions, please [open an issue](https://github.com/FROSTR-ORG/igloo-core/issues) or reach out to the FROSTR team.
+We welcome contributions to `@frostr/igloo-core`! Please see our [GitHub repository](https://github.com/FROSTR-ORG/igloo-core) for contribution guidelines.
 
 ## License
 
