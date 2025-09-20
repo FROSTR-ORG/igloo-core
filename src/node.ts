@@ -1,7 +1,7 @@
 import { BifrostNode, PackageEncoder } from '@frostr/bifrost';
-import { 
-  NodeConfig, 
-  NodeError, 
+import {
+  NodeConfig,
+  NodeError,
   NodeConfigSchema,
   type BifrostNodeEvents,
   type GroupPackage,
@@ -13,6 +13,7 @@ import {
   type NodeCreationResult,
   type NodeState
 } from './types.js';
+import { prepareNodePolicies, registerNodePolicyMetadata } from './policy.js';
 
 /**
  * Configuration for BifrostNode event logging
@@ -31,16 +32,24 @@ export function createBifrostNode(
   eventConfig: NodeEventConfig = {}
 ): BifrostNode {
   try {
-    // Validate configuration
-    NodeConfigSchema.parse(config);
+    const validatedConfig = NodeConfigSchema.parse(config);
 
-    const decodedGroup = PackageEncoder.group.decode(config.group);
-    const decodedShare = PackageEncoder.share.decode(config.share);
+    const decodedGroup = PackageEncoder.group.decode(validatedConfig.group);
+    const decodedShare = PackageEncoder.share.decode(validatedConfig.share);
 
-    const node = new BifrostNode(decodedGroup, decodedShare, config.relays);
+    const { peerConfigs, normalizedPolicies } = prepareNodePolicies(validatedConfig.policies);
+    const nodeOptions = peerConfigs.length ? { policies: peerConfigs } : undefined;
+
+    const node = nodeOptions
+      ? new BifrostNode(decodedGroup, decodedShare, validatedConfig.relays, nodeOptions)
+      : new BifrostNode(decodedGroup, decodedShare, validatedConfig.relays);
 
     // Set up event handlers with optional logging
     setupNodeEvents(node, eventConfig);
+
+    if (normalizedPolicies.length) {
+      registerNodePolicyMetadata(node, normalizedPolicies);
+    }
 
     return node;
   } catch (error: any) {

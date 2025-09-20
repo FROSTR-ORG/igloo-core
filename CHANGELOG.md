@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2025-09-20
+
+### 🚀 Added - Policy-Driven Signer Controls
+- **`src/policy.ts`**: New policy utility layer for normalizing Bifrost peer configs, syncing runtime metadata, and answering send/receive permission checks.
+- **`src/node.ts`**: `createBifrostNode` now accepts normalized policy definitions and registers metadata for downstream helpers.
+- **Exports & Types**: `NodePolicyInput`, `NodePolicySummary`, and `PolicyError` provide strongly-typed ergonomics for policy-aware tooling.
+
+### ✨ Improved
+- **IglooCore Convenience**: `createNode`/`createEnhancedNode` accept policy-aware options; new helpers (`setNodePolicies`, `canNodeSendTo`, etc.) simplify runtime governance.
+- **Documentation**: README details policy workflows, and AGENTS guide references the new controls.
+
+### 🧪 Tests
+- **`tests/policy.test.ts`** validates normalization, runtime merges, and permission guards.
+- **`tests/node.test.ts`** ensures policies flow to the Bifrost constructor.
+
 ## [0.1.3] - 2025-06-19
 
 ### 🚀 Added - Peer Management & Ping Functionality

@@ -29,7 +29,7 @@ import {
   // New ping types
   type PingResult,
   type PingMonitor
-} from '../src/index.js';
+} from '../dist/index.js';
 
 // Example demonstrating peer management functionality
 async function demonstratePeerManagement() {

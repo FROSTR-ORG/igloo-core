@@ -105,6 +105,20 @@ export {
   type PeerManagerResult
 } from './peer.js';
 
+// Export policy helpers
+export {
+  normalizeNodePolicyInput,
+  normalizeNodePolicies,
+  prepareNodePolicies,
+  setNodePolicies,
+  updateNodePolicy,
+  getNodePolicies,
+  getNodePolicy,
+  canSendToPeer,
+  canReceiveFromPeer,
+  summarizeNodePolicyMatrix
+} from './policy.js';
+
 // Export a convenience class for easier usage
 export class IglooCore {
   constructor(
@@ -132,14 +146,27 @@ export class IglooCore {
   async createNode(
     groupCredential: string,
     shareCredential: string,
-    relays?: string[]
+    relaysOrOptions?: string[] | CreateNodeOptions
   ) {
     const { createAndConnectNode } = await import('./node.js');
+    let relays: string[] | undefined;
+    let policies: NodePolicyInput[] | undefined;
+    let eventConfig: NodeEventConfig | undefined;
+
+    if (Array.isArray(relaysOrOptions)) {
+      relays = relaysOrOptions;
+    } else if (relaysOrOptions) {
+      relays = relaysOrOptions.relays;
+      policies = relaysOrOptions.policies;
+      eventConfig = relaysOrOptions.eventConfig;
+    }
+
     return createAndConnectNode({
       group: groupCredential,
       share: shareCredential,
-      relays: relays || this.defaultRelays
-    });
+      relays: relays || this.defaultRelays,
+      policies
+    }, eventConfig);
   }
 
   /**
@@ -148,16 +175,38 @@ export class IglooCore {
   async createEnhancedNode(
     groupCredential: string,
     shareCredential: string,
-    relays?: string[],
-    options?: { connectionTimeout?: number; autoReconnect?: boolean }
+    relaysOrOptions?: string[] | CreateEnhancedNodeOptions,
+    legacyOptions?: { connectionTimeout?: number; autoReconnect?: boolean }
   ) {
     const { createConnectedNode } = await import('./node.js');
+    let relays: string[] | undefined;
+    let policies: NodePolicyInput[] | undefined;
+    let connectionTimeout: number | undefined;
+    let autoReconnect: boolean | undefined;
+    let eventConfig: NodeEventConfig | undefined;
+
+    if (Array.isArray(relaysOrOptions)) {
+      relays = relaysOrOptions;
+      if (legacyOptions) {
+        connectionTimeout = legacyOptions.connectionTimeout;
+        autoReconnect = legacyOptions.autoReconnect;
+      }
+    } else if (relaysOrOptions) {
+      relays = relaysOrOptions.relays;
+      policies = relaysOrOptions.policies;
+      connectionTimeout = relaysOrOptions.connectionTimeout;
+      autoReconnect = relaysOrOptions.autoReconnect;
+      eventConfig = relaysOrOptions.eventConfig;
+    }
+
     return createConnectedNode({
       group: groupCredential,
       share: shareCredential,
       relays: relays || this.defaultRelays,
-      ...options
-    });
+      policies,
+      connectionTimeout,
+      autoReconnect
+    }, eventConfig);
   }
 
   /**
@@ -174,6 +223,66 @@ export class IglooCore {
   async cleanupNode(node: any) {
     const { cleanupBifrostNode } = await import('./node.js');
     return cleanupBifrostNode(node);
+  }
+
+  /**
+   * Set node-level peer policies (optionally merging with existing configuration)
+   */
+  async setNodePolicies(
+    node: any,
+    policies: NodePolicyInput[],
+    options: { merge?: boolean } = {}
+  ): Promise<NodePolicySummary[]> {
+    const { setNodePolicies } = await import('./policy.js');
+    return setNodePolicies(node, policies, options);
+  }
+
+  /**
+   * Update (merge) a single node policy
+   */
+  async updateNodePolicy(node: any, policy: NodePolicyInput) {
+    const { updateNodePolicy } = await import('./policy.js');
+    return updateNodePolicy(node, policy);
+  }
+
+  /**
+   * Retrieve current policy summaries for the node
+   */
+  async getNodePolicies(node: any): Promise<NodePolicySummary[]> {
+    const { getNodePolicies } = await import('./policy.js');
+    return getNodePolicies(node);
+  }
+
+  /**
+   * Lookup a policy for a specific peer by pubkey
+   */
+  async getNodePolicy(node: any, pubkey: string) {
+    const { getNodePolicy } = await import('./policy.js');
+    return getNodePolicy(node, pubkey);
+  }
+
+  /**
+   * Determine if outbound messaging is allowed for a peer
+   */
+  async canNodeSendTo(node: any, pubkey: string) {
+    const { canSendToPeer } = await import('./policy.js');
+    return canSendToPeer(node, pubkey);
+  }
+
+  /**
+   * Determine if inbound messaging is allowed for a peer
+   */
+  async canNodeReceiveFrom(node: any, pubkey: string) {
+    const { canReceiveFromPeer } = await import('./policy.js');
+    return canReceiveFromPeer(node, pubkey);
+  }
+
+  /**
+   * Summarize policies as a quick matrix keyed by pubkey
+   */
+  async summarizeNodePolicies(node: any) {
+    const { summarizeNodePolicyMatrix } = await import('./policy.js');
+    return summarizeNodePolicyMatrix(node);
   }
 
   /**
@@ -476,3 +585,16 @@ export class IglooCore {
 
 // Create a default instance
 export const igloo = new IglooCore(); 
+import type { NodePolicyInput, NodePolicySummary } from './types.js';
+import type { NodeEventConfig } from './node.js';
+
+type CreateNodeOptions = {
+  relays?: string[];
+  policies?: NodePolicyInput[];
+  eventConfig?: NodeEventConfig;
+};
+
+type CreateEnhancedNodeOptions = CreateNodeOptions & {
+  connectionTimeout?: number;
+  autoReconnect?: boolean;
+};

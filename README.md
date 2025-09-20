@@ -12,6 +12,7 @@ A TypeScript library providing core functionality for FROSTR/Bifrost distributed
 - 🔑 **Keyset Management**: Generate, decode, and manage threshold signature keysets using Shamir's Secret Sharing
 - 🌐 **Node Management**: Create and manage BifrostNodes with comprehensive event handling
 - 👥 **Peer Management**: Discover, monitor, and track peer status with automatic fallbacks
+- 🛡️ **Policy Controls**: Configure per-peer send/receive permissions and audit signer access paths
 - 🏓 **Ping Functionality**: Test peer connectivity and measure network latency
 - 📡 **Echo Functionality**: QR code transfers and share confirmation with visual feedback
 - 🔐 **Nostr Integration**: Complete nostr key management and format conversion utilities
@@ -582,6 +583,56 @@ const results = await pingPeersFromCredentials(groupCredential, shareCredential,
   timeout: 5000,
   relays: ['wss://relay.damus.io']
 });
+
+```
+
+## Policy Management
+
+Configure directional policies that gate which peers your node will contact or accept requests from.
+
+```typescript
+import {
+  setNodePolicies,
+  getNodePolicies,
+  canSendToPeer,
+  canReceiveFromPeer
+} from '@frostr/igloo-core';
+
+// Seed policies during node creation using IglooCore
+const igloo = new IglooCore();
+const { node } = await igloo.createEnhancedNode(groupCredential, shareCredential, {
+  relays: ['wss://relay.damus.io'],
+  policies: [
+    {
+      pubkey: '02ab...ff',
+      allowSend: false,
+      allowReceive: true,
+      label: 'Cold Storage Signer'
+    }
+  ],
+  autoReconnect: true
+});
+
+// Update or merge policies at runtime
+await setNodePolicies(node, [
+  {
+    pubkey: 'npub1example...',
+    allowSend: true,
+    allowReceive: false,
+    note: 'Read-only peer'
+  }
+], { merge: true });
+
+const policies = await getNodePolicies(node);
+console.table(policies.map(({ pubkey, allowSend, allowReceive, status }) => ({ pubkey, allowSend, allowReceive, status })));
+
+if (!await canSendToPeer(node, 'npub1example...')) {
+  throw new Error('Outbound signing not permitted for this peer');
+}
+
+if (!await canReceiveFromPeer(node, 'npub1example...')) {
+  console.warn('Incoming requests from peer will be rejected');
+}
 ```
 
 ## Validation

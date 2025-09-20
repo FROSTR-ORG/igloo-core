@@ -24,10 +24,37 @@ export const SecretKeySchema = z.string().regex(
   "Invalid secret key format - must be 64 hexadecimal characters"
 );
 
+const HexPubkeySchema = z.string().regex(/^[0-9a-fA-F]{64}$/);
+const CompressedHexPubkeySchema = z.string().regex(/^(02|03)[0-9a-fA-F]{64}$/);
+
+export const NodePolicyInputSchema = z.object({
+  pubkey: z.string().min(1, 'Peer pubkey is required').refine(value => {
+    return (
+      HexPubkeySchema.safeParse(value).success ||
+      CompressedHexPubkeySchema.safeParse(value).success ||
+      value.startsWith('npub')
+    );
+  }, 'Peer pubkey must be a hex or npub value'),
+  allowSend: z.boolean().optional(),
+  allowReceive: z.boolean().optional(),
+  send: z.boolean().optional(),
+  recv: z.boolean().optional(),
+  policy: z.object({
+    send: z.boolean().optional(),
+    recv: z.boolean().optional()
+  }).optional(),
+  label: z.string().max(120).optional(),
+  roles: z.array(z.string().min(1)).optional(),
+  metadata: z.record(z.any()).optional(),
+  note: z.string().optional(),
+  source: z.enum(['config', 'runtime']).optional()
+});
+
 export const NodeConfigSchema = z.object({
   group: z.string(),
   share: z.string(),
-  relays: z.array(RelayUrlSchema).min(1, "At least one relay URL must be provided")
+  relays: z.array(RelayUrlSchema).min(1, "At least one relay URL must be provided"),
+  policies: z.array(NodePolicyInputSchema).optional()
 });
 
 export const EchoListenerConfigSchema = z.object({
@@ -59,6 +86,26 @@ export const HexKeySchema = z.string().regex(
 export type KeysetParams = z.infer<typeof KeysetParamsSchema>;
 export type NodeConfig = z.infer<typeof NodeConfigSchema>;
 export type EchoListenerConfig = z.infer<typeof EchoListenerConfigSchema>;
+
+export type NodePolicyInput = z.infer<typeof NodePolicyInputSchema>;
+
+export type NodePolicyStatus = 'online' | 'offline' | 'unknown';
+
+export interface NodePolicy {
+  pubkey: string;
+  allowSend: boolean;
+  allowReceive: boolean;
+  label?: string;
+  roles?: string[];
+  metadata?: Record<string, unknown>;
+  note?: string;
+  source?: 'config' | 'runtime';
+}
+
+export interface NodePolicySummary extends NodePolicy {
+  status: NodePolicyStatus;
+  lastUpdated?: Date;
+}
 
 export interface KeysetCredentials {
   groupCredential: string;
@@ -211,6 +258,13 @@ export class NodeError extends IglooError {
   constructor(message: string, details?: any) {
     super(message, 'NODE_ERROR', details);
     this.name = 'NodeError';
+  }
+}
+
+export class PolicyError extends IglooError {
+  constructor(message: string, details?: any) {
+    super(message, 'POLICY_ERROR', details);
+    this.name = 'PolicyError';
   }
 }
 

@@ -10,7 +10,7 @@ import {
     KeysetError,
     EchoError,
     NodeError
-  } from '../src/index.js';
+  } from '../dist/index.js';
   
   // Demo function showing basic usage
   async function demoBasicUsage() {

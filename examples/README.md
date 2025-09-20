@@ -31,6 +31,12 @@ Comprehensive validation examples demonstrating all validation functions:
 - Batch validation and advanced options
 - IglooCore convenience validation methods
 
+### `policy-example.ts`
+Showcases how to seed and update Bifrost peer policies through Igloo Core helpers:
+- Create a node with initial send/receive directives
+- Merge additional policies at runtime
+- Summarize the active policy matrix for dashboards or logging
+
 ## Running Examples
 
 1. First build the library:

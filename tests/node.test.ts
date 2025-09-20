@@ -43,6 +43,38 @@ describe('Node Management', () => {
       expect(node.connect).toHaveBeenCalled();
     });
 
+    it('should normalize and forward policies to BifrostNode', async () => {
+      const policyConfig = {
+        ...mockConfig,
+        policies: [
+          {
+            pubkey: `02${'a'.repeat(64)}`,
+            allowSend: false,
+            allowReceive: true
+          }
+        ]
+      };
+
+      const node = await createAndConnectNode(policyConfig);
+
+      expect(node).toBeDefined();
+
+      const { BifrostNode } = require('@frostr/bifrost');
+      expect(BifrostNode).toHaveBeenCalledWith(
+        expect.any(Object),
+        expect.any(Object),
+        policyConfig.relays,
+        expect.objectContaining({
+          policies: [
+            {
+              pubkey: 'a'.repeat(64),
+              policy: { send: false, recv: true }
+            }
+          ]
+        })
+      );
+    });
+
     it('should throw NodeError on invalid config', async () => {
       const invalidConfig = {
         group: '',

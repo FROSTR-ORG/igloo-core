@@ -12,7 +12,7 @@ import {
   validateWithOptions,
   VALIDATION_CONSTANTS,
   IglooCore
-} from '../src';
+} from '../dist/index.js';
 
 console.log('🔍 Igloo-Core Validation Examples\n');
 
