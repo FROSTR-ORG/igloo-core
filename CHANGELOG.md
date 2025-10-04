@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2025-10-04
+
+### 🔒 Fixed
+- `sendEcho` now transmits echo challenges, enforces response handling, and detaches listeners before resolving to avoid stray events.
+
+### ✨ Improved
+- Added strict challenge validation and relay resolution guardrails for echo utilities.
+
+### 📚 Documentation
+- README sample now generates 32-byte (64 hex) challenges and explains the expected format.
+
+### 🧪 Tests
+- Added `tests/echo.test.ts` to cover success, rejection, timeout, and validation scenarios.
+
 ## [0.2.0] - 2025-09-20
 
 ### 🚀 Added - Policy-Driven Signer Controls
