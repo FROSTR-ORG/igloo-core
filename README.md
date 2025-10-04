@@ -322,7 +322,7 @@ Send an echo signal to notify other devices that a share has been imported.
 import { sendEcho } from '@frostr/igloo-core';
 
 try {
-  const challenge = crypto.randomUUID().replace(/-/g, '');
+  const challenge = crypto.randomUUID().replace(/-/g, ''); // 32-byte hex string
   const sent = await sendEcho(
     groupCredential,
     shareCredential,
@@ -338,6 +338,7 @@ try {
 }
 ```
 
+`challenge` must be an even-length hexadecimal string (32 bytes / 64 hex characters recommended).
 #### `startListeningForAllEchoes(groupCredential, shareCredentials, callback, options?)`
 
 Starts listening for echo events on all shares in a keyset.

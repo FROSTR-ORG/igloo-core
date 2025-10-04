@@ -329,10 +329,28 @@ export async function sendEcho(
     eventConfig = { enableLogging: true, logLevel: 'info' }
   } = options;
 
+  if (typeof challenge !== 'string') {
+    throw new TypeError('Echo challenge must be provided as a hexadecimal string.');
+  }
+
+  const normalizedChallenge = challenge.trim();
+
+  if (normalizedChallenge.length === 0) {
+    throw new TypeError('Echo challenge must be provided as a non-empty hexadecimal string.');
+  }
+
+  if (normalizedChallenge.length % 2 !== 0 || !/^[0-9a-fA-F]+$/.test(normalizedChallenge)) {
+    throw new TypeError('Echo challenge must be an even-length hexadecimal string.');
+  }
+
   return new Promise(async (resolve, reject) => {
     let node: BifrostNode | null = null;
     let timeoutId: NodeJS.Timeout | null = null;
     let isResolved = false;
+
+    let onEchoResponse: ((msg: any) => void) | null = null;
+    let onEchoRejection: ((reason: string, msg: any) => void) | null = null;
+    let onError: ((error: unknown) => void) | null = null;
 
     const cleanup = () => {
       if (timeoutId) {
@@ -341,6 +359,18 @@ export async function sendEcho(
       }
       if (node) {
         try {
+          if (onEchoResponse) {
+            node.off('/echo/sender/res', onEchoResponse);
+            onEchoResponse = null;
+          }
+          if (onEchoRejection) {
+            node.off('/echo/sender/rej', onEchoRejection);
+            onEchoRejection = null;
+          }
+          if (onError) {
+            node.off('error', onError);
+            onError = null;
+          }
           closeNode(node);
         } catch (error) {
           console.warn('[sendEcho] Error during cleanup:', error);
@@ -352,16 +382,16 @@ export async function sendEcho(
     const safeResolve = (value: boolean) => {
       if (!isResolved) {
         isResolved = true;
-        resolve(value);
         cleanup();
+        resolve(value);
       }
     };
 
     const safeReject = (error: Error) => {
       if (!isResolved) {
         isResolved = true;
-        reject(error);
         cleanup();
+        reject(error);
       }
     };
 
@@ -389,19 +419,19 @@ export async function sendEcho(
       );
 
       // Listen for echo response
-      const onEchoResponse = (msg: any) => {
+      onEchoResponse = (msg: any) => {
         if (msg && msg.tag === '/echo/res') {
           log('debug', 'Echo response event received', msg);
           safeResolve(true);
         }
       };
 
-      const onEchoRejection = (reason: string, msg: any) => {
+      onEchoRejection = (reason: string, msg: any) => {
         log('warn', `Echo rejected: ${reason}`, msg);
         safeReject(new EchoError(`Echo rejected: ${reason}`, { msg }));
       };
 
-      const onError = (error: unknown) => {
+      onError = (error: unknown) => {
         log('error', `Node error: ${error}`);
         safeReject(new EchoError(`Node error: ${error}`));
       };
@@ -422,7 +452,7 @@ export async function sendEcho(
       await connectNode(node);
 
       log('debug', 'Sending echo challenge');
-      const response = await node.req.echo(challenge);
+      const response = await node.req.echo(normalizedChallenge);
 
       if (!response?.ok) {
         const reason = response?.err || 'Unknown error';

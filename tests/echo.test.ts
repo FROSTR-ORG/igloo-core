@@ -91,4 +91,26 @@ const {
     expect(error).toBeInstanceOf(EchoError);
     expect(error).toMatchObject({ message: 'Echo response timeout after 5 seconds' });
   });
+
+  it('throws when challenge is empty after trimming', async () => {
+    await expect(
+      sendEcho('group-credential-2-3', 'share-credential-0', '   ')
+    ).rejects.toThrow('Echo challenge must be provided as a non-empty hexadecimal string.');
+  });
+
+  it('throws when challenge is not hexadecimal', async () => {
+    await expect(
+      sendEcho('group-credential-2-3', 'share-credential-0', 'ghij')
+    ).rejects.toThrow('Echo challenge must be an even-length hexadecimal string.');
+  });
+
+  it('trims whitespace before sending the challenge', async () => {
+    mockNode.req.echo.mockResolvedValue({ ok: true, data: 'echo-data' });
+
+    await expect(
+      sendEcho('group-credential-2-3', 'share-credential-0', ' deadbeef ')
+    ).resolves.toBe(true);
+
+    expect(mockNode.req.echo).toHaveBeenCalledWith('deadbeef');
+  });
 });
