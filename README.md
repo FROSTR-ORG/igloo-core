@@ -314,7 +314,7 @@ try {
 }
 ```
 
-#### `sendEcho(groupCredential, shareCredential, options?)` 
+#### `sendEcho(groupCredential, shareCredential, challenge, options?)` 
 
 Send an echo signal to notify other devices that a share has been imported.
 
@@ -322,9 +322,11 @@ Send an echo signal to notify other devices that a share has been imported.
 import { sendEcho } from '@frostr/igloo-core';
 
 try {
+  const challenge = crypto.randomUUID().replace(/-/g, '');
   const sent = await sendEcho(
     groupCredential,
     shareCredential,
+    challenge,
     {
       relays: ['wss://relay.damus.io'],
       timeout: 10000
@@ -1000,7 +1002,7 @@ export function setupNodeEvents(node: BifrostNode, config: NodeEventConfig): voi
 // Echo functions
 export function awaitShareEcho(groupCredential: string, shareCredential: string, options?: EchoOptions): Promise<boolean>
 export function startListeningForAllEchoes(groupCredential: string, shareCredentials: string[], callback: EchoReceivedCallback, options?: EchoOptions): EchoListener
-export function sendEcho(groupCredential: string, shareCredential: string, options?: EchoOptions): Promise<boolean>
+export function sendEcho(groupCredential: string, shareCredential: string, challenge: string, options?: EchoOptions): Promise<boolean>
 export const DEFAULT_ECHO_RELAYS: string[]
 
 // Nostr functions

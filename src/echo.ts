@@ -5,7 +5,7 @@ import {
   closeNode,
   type NodeEventConfig 
 } from './node.js';
-import { decodeShare } from './keyset.js';
+import { decodeShare, decodeGroup } from './keyset.js';
 import { 
   EchoError, 
   type EchoListener,
@@ -20,6 +20,27 @@ export const DEFAULT_ECHO_RELAYS = [
   "wss://relay.damus.io", 
   "wss://relay.primal.net"
 ];
+
+function resolveEchoRelays(
+  groupCredential: string,
+  explicitRelays?: string[]
+): string[] {
+  if (explicitRelays && explicitRelays.length > 0) {
+    return explicitRelays;
+  }
+
+  try {
+    const group = decodeGroup(groupCredential) as unknown;
+    const relays = (group as { relays?: unknown }).relays;
+    if (Array.isArray(relays) && relays.length > 0) {
+      return relays as string[];
+    }
+  } catch {
+    // If group decoding fails we fall back to defaults; createBifrostNode will surface errors later.
+  }
+
+  return DEFAULT_ECHO_RELAYS;
+}
 
 /**
  * Waits for an echo event on a specific share.
@@ -36,7 +57,7 @@ export function awaitShareEcho(
   } = {}
 ): Promise<boolean> {
   const {
-    relays = DEFAULT_ECHO_RELAYS,
+    relays: relayOverrides,
     timeout = 30000,
     eventConfig = { enableLogging: true, logLevel: 'info' }
   } = options;
@@ -79,7 +100,8 @@ export function awaitShareEcho(
 
     try {
       const shareDetails = decodeShare(shareCredential);
-      
+      const resolvedRelays = resolveEchoRelays(groupCredential, relayOverrides);
+
       // Create custom event config that includes our echo handler
       const customEventConfig: NodeEventConfig = {
         ...eventConfig,
@@ -94,7 +116,7 @@ export function awaitShareEcho(
       };
 
       node = createBifrostNode(
-        { group: groupCredential, share: shareCredential, relays },
+        { group: groupCredential, share: shareCredential, relays: resolvedRelays },
         customEventConfig
       );
 
@@ -173,7 +195,7 @@ export function startListeningForAllEchoes(
   } = {}
 ): EchoListener {
   const {
-    relays = DEFAULT_ECHO_RELAYS,
+    relays: relayOverrides,
     eventConfig = { enableLogging: true, logLevel: 'info' }
   } = options;
 
@@ -190,6 +212,8 @@ export function startListeningForAllEchoes(
     }
   };
 
+  const resolvedRelays = resolveEchoRelays(groupCredential, relayOverrides);
+
   customLogger('info', `Starting echo listeners for ${shareCredentials.length} shares`);
 
   shareCredentials.forEach((shareCredential, index) => {
@@ -197,7 +221,7 @@ export function startListeningForAllEchoes(
       const shareDetails = decodeShare(shareCredential);
       
       const node = createBifrostNode(
-        { group: groupCredential, share: shareCredential, relays },
+        { group: groupCredential, share: shareCredential, relays: resolvedRelays },
         { ...eventConfig, customLogger }
       );
       
@@ -292,6 +316,7 @@ export function startListeningForAllEchoes(
 export async function sendEcho(
   groupCredential: string,
   shareCredential: string,
+  challenge: string,
   options: {
     relays?: string[];
     timeout?: number;
@@ -299,7 +324,7 @@ export async function sendEcho(
   } = {}
 ): Promise<boolean> {
   const {
-    relays = DEFAULT_ECHO_RELAYS,
+    relays: relayOverrides,
     timeout = 10000,
     eventConfig = { enableLogging: true, logLevel: 'info' }
   } = options;
@@ -342,24 +367,42 @@ export async function sendEcho(
 
     try {
       const shareDetails = decodeShare(shareCredential);
-      
+      const resolvedRelays = resolveEchoRelays(groupCredential, relayOverrides);
+
+      const log = (level: string, message: string, data?: any) => {
+        const prefix = `[sendEcho:${shareDetails.idx}]`;
+        if (eventConfig.customLogger) {
+          eventConfig.customLogger(level, `${prefix} ${message}`, data);
+        } else if (eventConfig.enableLogging) {
+          console.log(`${prefix} [${level.toUpperCase()}] ${message}`, data || '');
+        }
+      };
+
       node = createBifrostNode(
-        { group: groupCredential, share: shareCredential, relays },
-        eventConfig
+        { group: groupCredential, share: shareCredential, relays: resolvedRelays },
+        {
+          ...eventConfig,
+          customLogger: (level, message, data) => {
+            log(level, message, data);
+          }
+        }
       );
 
       // Listen for echo response
       const onEchoResponse = (msg: any) => {
         if (msg && msg.tag === '/echo/res') {
+          log('debug', 'Echo response event received', msg);
           safeResolve(true);
         }
       };
 
       const onEchoRejection = (reason: string, msg: any) => {
+        log('warn', `Echo rejected: ${reason}`, msg);
         safeReject(new EchoError(`Echo rejected: ${reason}`, { msg }));
       };
 
       const onError = (error: unknown) => {
+        log('error', `Node error: ${error}`);
         safeReject(new EchoError(`Node error: ${error}`));
       };
 
@@ -369,6 +412,7 @@ export async function sendEcho(
 
       // Set up timeout
       timeoutId = setTimeout(() => {
+        log('warn', `Echo response timeout after ${timeout}ms`);
         safeReject(new EchoError(
           `Echo response timeout after ${timeout / 1000} seconds`,
           { shareIndex: shareDetails.idx, timeout }
@@ -376,16 +420,30 @@ export async function sendEcho(
       }, timeout);
 
       await connectNode(node);
-      
-      // Send echo request (this would need to be implemented in bifrost)
-      // For now, we'll just resolve as successful connection
+
+      log('debug', 'Sending echo challenge');
+      const response = await node.req.echo(challenge);
+
+      if (!response?.ok) {
+        const reason = response?.err || 'Unknown error';
+        throw new EchoError(
+          `Echo request failed: ${reason}`,
+          { error: reason, shareIndex: shareDetails.idx }
+        );
+      }
+
+      log('info', 'Echo request completed successfully');
       safeResolve(true);
 
     } catch (error: any) {
-      safeReject(new EchoError(
-        `Failed to send echo: ${error.message}`,
-        { error }
-      ));
+      if (error instanceof EchoError) {
+        safeReject(error);
+      } else {
+        safeReject(new EchoError(
+          `Failed to send echo: ${error.message}`,
+          { error }
+        ));
+      }
     }
   });
-} 
+}
