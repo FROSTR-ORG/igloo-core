@@ -320,9 +320,10 @@ Send an echo signal to notify other devices that a share has been imported.
 
 ```typescript
 import { sendEcho } from '@frostr/igloo-core';
+import { randomBytes } from 'crypto';
 
 try {
-  const challenge = crypto.randomUUID().replace(/-/g, ''); // 32-byte hex string
+  const challenge = randomBytes(32).toString('hex'); // 32-byte (64 hex char) challenge
   const sent = await sendEcho(
     groupCredential,
     shareCredential,
