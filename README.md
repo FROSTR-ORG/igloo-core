@@ -287,6 +287,8 @@ import { cleanupBifrostNode } from '@frostr/igloo-core';
 cleanupBifrostNode(node);
 ```
 
+`closeNode` now monitors the underlying Nostr shutdown and will emit an `error` event (and log a warning) if a relay disconnect fails unexpectedly, while automatically silencing the routine "relay connection closed by us" cases that arise during normal teardown.
+
 #### Event Handling
 
 The library automatically handles all Bifrost node events including:

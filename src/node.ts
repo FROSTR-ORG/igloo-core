@@ -312,11 +312,81 @@ export async function connectNode(node: BifrostNode): Promise<void> {
  * Safely closes a BifrostNode with cleanup
  */
 export function closeNode(node: BifrostNode): void {
+  const nodeAsAny = node as any;
+  const client = nodeAsAny?.client;
+
+  const emitCloseError = (error: unknown) => {
+    if (error instanceof Error && error.message === 'relay connection closed by us') {
+      // Expected during normal shutdown; swallow to avoid noisy logs.
+      return;
+    }
+
+    const normalized = error instanceof NodeError
+      ? error
+      : new NodeError(
+          `Failed to close BifrostNode: ${error instanceof Error ? error.message : String(error)}`,
+          { error }
+        );
+
+    if (typeof nodeAsAny?.emit === 'function') {
+      nodeAsAny.emit('error', normalized);
+    }
+
+    console.warn('[closeNode] Error while closing BifrostNode:', normalized);
+  };
+
+  const attachErrorHandler = (maybePromise: unknown) => {
+    if (maybePromise && typeof (maybePromise as Promise<unknown>).catch === 'function') {
+      (maybePromise as Promise<unknown>).catch(emitCloseError);
+    }
+  };
+
+  if (client && typeof client.close === 'function') {
+    const originalClose = client.close;
+    const hadOwnClose = Object.prototype.hasOwnProperty.call(client, 'close');
+    const restoreClientClose = () => {
+      if (hadOwnClose) {
+        client.close = originalClose;
+      } else {
+        delete client.close;
+      }
+    };
+
+    client.close = (...args: unknown[]) => {
+      try {
+        const result = originalClose.apply(client, args);
+        if (result && typeof (result as Promise<unknown>).finally === 'function') {
+          (result as Promise<unknown>)
+            .catch(emitCloseError)
+            .finally(restoreClientClose);
+        } else {
+          restoreClientClose();
+        }
+        return result;
+      } catch (error) {
+        restoreClientClose();
+        throw error;
+      }
+    };
+
+    try {
+      attachErrorHandler(node.close());
+    } catch (error: any) {
+      restoreClientClose();
+      throw new NodeError(
+        `Failed to close BifrostNode: ${error?.message ?? error}`,
+        { error }
+      );
+    }
+
+    return;
+  }
+
   try {
-    node.close();
+    attachErrorHandler(node.close());
   } catch (error: any) {
     throw new NodeError(
-      `Failed to close BifrostNode: ${error.message}`,
+      `Failed to close BifrostNode: ${error?.message ?? error}`,
       { error }
     );
   }

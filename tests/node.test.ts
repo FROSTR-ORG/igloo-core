@@ -2,6 +2,7 @@ import {
   createAndConnectNode, 
   createConnectedNode,
   connectNode,
+  closeNode,
   isNodeReady,
   cleanupBifrostNode,
   NodeError
@@ -31,6 +32,8 @@ describe('Node Management', () => {
     share: 'bfshare1test',
     relays: ['wss://relay.test.com']
   };
+
+  const flushPromises = () => new Promise(resolve => setImmediate(resolve));
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -174,6 +177,78 @@ describe('Node Management', () => {
       expect(node.connect).toHaveBeenCalledTimes(1);
       expect(clientConnect).toHaveBeenCalledTimes(1);
       expect(node.client.connect).toBe(clientConnect);
+    });
+  });
+
+  describe('closeNode', () => {
+    let warnSpy: jest.SpyInstance;
+
+    beforeEach(() => {
+      warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      warnSpy.mockRestore();
+    });
+
+    it('ignores expected relay closure rejections without emitting errors', async () => {
+      const originalClose = jest.fn().mockReturnValue(Promise.reject(new Error('relay connection closed by us')));
+      const emit = jest.fn();
+
+      const node: any = {
+        client: { close: originalClose },
+        emit,
+        close: jest.fn(function (this: any) {
+          this.client.close();
+          return Promise.resolve();
+        })
+      };
+
+      closeNode(node);
+      await flushPromises();
+
+      expect(originalClose).toHaveBeenCalledTimes(1);
+      expect(node.client.close).toBe(originalClose);
+      expect(emit).not.toHaveBeenCalled();
+      expect(warnSpy).not.toHaveBeenCalled();
+    });
+
+    it('emits NodeError for unexpected close failures', async () => {
+      const unexpected = new Error('boom');
+      const originalClose = jest.fn().mockReturnValue(Promise.reject(unexpected));
+      const emit = jest.fn();
+
+      const node: any = {
+        client: { close: originalClose },
+        emit,
+        close: jest.fn(function (this: any) {
+          this.client.close();
+          return Promise.resolve();
+        })
+      };
+
+      closeNode(node);
+      await flushPromises();
+
+      expect(originalClose).toHaveBeenCalledTimes(1);
+      expect(node.client.close).toBe(originalClose);
+      expect(emit).toHaveBeenCalledTimes(1);
+      const [eventName, error] = emit.mock.calls[0];
+      expect(eventName).toBe('error');
+      expect(error).toBeInstanceOf(NodeError);
+      expect((error as NodeError).message).toContain('Failed to close BifrostNode');
+      expect(warnSpy).toHaveBeenCalled();
+    });
+
+    it('throws NodeError when node.close fails synchronously', () => {
+      const node: any = {
+        client: { close: jest.fn() },
+        close: jest.fn(() => {
+          throw new Error('sync failure');
+        })
+      };
+
+      expect(() => closeNode(node)).toThrow(NodeError);
     });
   });
 

@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3] - 2025-10-07
+
+### 🔒 Fixed
+- `closeNode` now observes the Nostr shutdown promise, swallowing the expected "relay connection closed by us" rejection and surfacing unexpected teardown failures via the node's `error` event instead of crashing callers.
+
+### 🧪 Tests
+- Added regression tests ensuring `closeNode` restores the original client, ignores expected relay closures, and emits a `NodeError` for unexpected shutdown errors.
+
+### 📚 Documentation
+- Documented the improved shutdown behaviour in the Node Cleanup section of the README.
+
 ## [0.2.2] - 2025-10-07
 
 ### 🔒 Fixed
