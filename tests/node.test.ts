@@ -1,6 +1,7 @@
 import { 
   createAndConnectNode, 
   createConnectedNode,
+  connectNode,
   isNodeReady,
   cleanupBifrostNode,
   NodeError
@@ -112,6 +113,67 @@ describe('Node Management', () => {
       };
 
       await expect(createConnectedNode(invalidConfig)).rejects.toThrow();
+    });
+  });
+
+  describe('connectNode', () => {
+    it('awaits the underlying client.connect promise before resolving', async () => {
+      let resolveClient: (() => void) | undefined;
+      const clientConnect = jest.fn().mockImplementation(
+        () => new Promise<void>(resolve => {
+          resolveClient = resolve;
+        })
+      );
+
+      const node = {
+        client: { connect: clientConnect },
+        connect: jest.fn(function (this: any) {
+          this.client.connect();
+          return Promise.resolve();
+        })
+      };
+
+      const connectPromise = connectNode(node as any);
+
+      expect(node.connect).toHaveBeenCalledTimes(1);
+      expect(clientConnect).toHaveBeenCalledTimes(1);
+
+      let completed = false;
+      connectPromise.then(() => {
+        completed = true;
+      });
+
+      await Promise.resolve();
+      expect(completed).toBe(false);
+
+      resolveClient?.();
+      await connectPromise;
+
+      expect(completed).toBe(true);
+      expect(node.client.connect).toBe(clientConnect);
+    });
+
+    it('rethrows handshake failures as NodeError and restores client.connect', async () => {
+      const handshakeError = new Error('WebSocket was closed before the connection was established');
+      const clientConnect = jest.fn().mockImplementation(() => Promise.reject(handshakeError));
+
+      const node = {
+        client: { connect: clientConnect },
+        connect: jest.fn(function (this: any) {
+          this.client.connect();
+          return Promise.resolve();
+        })
+      };
+
+      const connectCall = connectNode(node as any);
+      await expect(connectCall).rejects.toThrow('WebSocket was closed before the connection was established');
+
+      const error = await connectCall.catch(err => err);
+      expect(error).toBeInstanceOf(NodeError);
+
+      expect(node.connect).toHaveBeenCalledTimes(1);
+      expect(clientConnect).toHaveBeenCalledTimes(1);
+      expect(node.client.connect).toBe(clientConnect);
     });
   });
 

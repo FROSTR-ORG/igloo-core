@@ -257,6 +257,25 @@ console.log('Node state:', result.state);
 // State includes: isReady, isConnected, isConnecting, lastError, connectedRelays
 ```
 
+#### `connectNode(node)` - Safe Connection Wrapper
+
+Wraps `BifrostNode.connect()` and guarantees that any handshake failure surfaces as a rejected `NodeError` instead of an unhandled promise rejection. This helper now awaits the underlying Nostr client connection promise, so issues such as "WebSocket was closed before the connection was established" can be caught and handled in your CLI or UI.
+
+```typescript
+import { connectNode, NodeError } from '@frostr/igloo-core';
+
+try {
+  await connectNode(node);
+  console.log('Node connected to all relays');
+} catch (error) {
+  if (error instanceof NodeError) {
+    console.error('Failed to connect:', error.message);
+  } else {
+    throw error;
+  }
+}
+```
+
 #### Node Cleanup
 
 Always clean up nodes when done to prevent memory leaks:

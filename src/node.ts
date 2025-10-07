@@ -255,11 +255,54 @@ export function setupNodeEvents(
  * Safely connects a BifrostNode with error handling
  */
 export async function connectNode(node: BifrostNode): Promise<void> {
+  const nodeAsAny = node as any;
+  const client = nodeAsAny?.client;
+  if (client && typeof client.connect === 'function') {
+    // Work around upstream bug where BifrostNode.connect drops the promise
+    // returned by client.connect(), causing unhandled rejections when the
+    // handshake fails. Capture that promise so we can await (and surface) it.
+    const originalConnect = client.connect;
+    const hadOwnConnect = Object.prototype.hasOwnProperty.call(client, 'connect');
+    let connectPromise: Promise<unknown> | undefined;
+
+    client.connect = (...args: unknown[]) => {
+      const result = originalConnect.apply(client, args);
+      if (result && typeof (result as Promise<unknown>).then === 'function') {
+        connectPromise = Promise.resolve(result).catch((error: unknown) => {
+          throw error;
+        });
+        return connectPromise;
+      }
+
+      connectPromise = undefined;
+      return result;
+    };
+
+    try {
+      await node.connect();
+      if (connectPromise) {
+        await connectPromise;
+      }
+      return;
+    } catch (error: any) {
+      throw new NodeError(
+        `Failed to connect BifrostNode: ${error?.message ?? error}`,
+        { error }
+      );
+    } finally {
+      if (hadOwnConnect) {
+        client.connect = originalConnect;
+      } else {
+        delete client.connect;
+      }
+    }
+  }
+
   try {
     await node.connect();
   } catch (error: any) {
     throw new NodeError(
-      `Failed to connect BifrostNode: ${error.message}`,
+      `Failed to connect BifrostNode: ${error?.message ?? error}`,
       { error }
     );
   }
