@@ -1,6 +1,6 @@
 {
     "name": "@frostr/igloo-core",
-    "version": "0.2.3",
+    "version": "0.2.4",
     "description": "Core library for FROSTR's IGLOO client functionality - secure distributed key management and remote signing",
     "type": "module",
     "main": "dist/index.js",
