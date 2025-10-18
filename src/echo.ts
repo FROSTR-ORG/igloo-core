@@ -21,6 +21,14 @@ export const DEFAULT_ECHO_RELAYS = [
   "wss://relay.primal.net"
 ];
 
+function isEvenLengthHex(data: unknown): boolean {
+  if (typeof data !== 'string') return false;
+  const s = data.trim();
+  if (s.length === 0) return false;
+  if (s.length % 2 !== 0) return false;
+  return /^[0-9a-fA-F]+$/.test(s);
+}
+
 function resolveEchoRelays(
   groupCredential: string,
   explicitRelays?: string[]
@@ -120,11 +128,11 @@ export function awaitShareEcho(
         customEventConfig
       );
 
-      // Set up echo-specific message handler
+      // Set up echo-specific message handler (accept legacy 'echo' OR challenge-hex)
       const onMessageHandler = (messagePayload: any) => {
-        if (messagePayload && 
-            messagePayload.data === 'echo' && 
-            messagePayload.tag === '/echo/req') {
+        if (messagePayload &&
+            messagePayload.tag === '/echo/req' &&
+            (messagePayload.data === 'echo' || isEvenLengthHex(messagePayload.data))) {
           
           customEventConfig.customLogger?.('info', 
             `Echo request received for share ${shareDetails.idx}`, 
@@ -227,11 +235,11 @@ export function startListeningForAllEchoes(
       
       nodes.push(node);
 
-      // Create message handler for this specific share
+      // Create message handler for this specific share (accept legacy 'echo' OR challenge-hex)
       const onMessageHandler = (messagePayload: any) => {
-        if (messagePayload && 
-            messagePayload.data === 'echo' && 
-            messagePayload.tag === '/echo/req') {
+        if (messagePayload &&
+            messagePayload.tag === '/echo/req' &&
+            (messagePayload.data === 'echo' || isEvenLengthHex(messagePayload.data))) {
           
           customLogger('info', 
             `Echo received for share ${index} (idx: ${shareDetails.idx})`
