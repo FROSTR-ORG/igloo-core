@@ -1,4 +1,4 @@
-import { sendEcho } from '../src/echo.js';
+import { sendEcho, awaitShareEcho, startListeningForAllEchoes } from '../src/echo.js';
 import { EchoError } from '../src/types.js';
 
 jest.mock('@frostr/bifrost', () => {
@@ -112,5 +112,109 @@ const {
     ).resolves.toBe(true);
 
     expect(mockNode.req.echo).toHaveBeenCalledWith('deadbeef');
+  });
+});
+
+describe('echo listeners (awaitShareEcho/startListeningForAllEchoes)', () => {
+  const {
+    __mockNode: mockNode,
+    __mockDecodeGroup,
+    __mockDecodeShare
+  } = require('@frostr/bifrost');
+
+  let handlers: Map<string, Function[]>;
+
+  const emit = (event: string, payload?: any) => {
+    const fns = handlers.get(event) || [];
+    fns.forEach(fn => fn(payload));
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    handlers = new Map();
+    mockNode.connect.mockResolvedValue(undefined);
+    mockNode.close.mockResolvedValue(undefined);
+    mockNode.on.mockImplementation((event: string, fn: Function) => {
+      const arr = handlers.get(event) || [];
+      arr.push(fn);
+      handlers.set(event, arr);
+    });
+    mockNode.off.mockImplementation((event: string, fn: Function) => {
+      const arr = handlers.get(event) || [];
+      handlers.set(
+        event,
+        arr.filter(f => f !== fn)
+      );
+    });
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('awaitShareEcho resolves on legacy \'/echo/req\' with data "echo"', async () => {
+    const promise = awaitShareEcho('group-credential-2-3', 'share-credential-0', { timeout: 5000 });
+
+    // Simulate incoming legacy echo packet
+    emit('message', { tag: '/echo/req', data: 'echo' });
+
+    await expect(promise).resolves.toBe(true);
+  });
+
+  it('awaitShareEcho resolves on challenge-hex payload', async () => {
+    const promise = awaitShareEcho('group-credential-2-3', 'share-credential-0', { timeout: 5000 });
+
+    // Simulate incoming challenge-hex echo packet
+    emit('message', { tag: '/echo/req', data: 'deadbeef' });
+
+    await expect(promise).resolves.toBe(true);
+  });
+
+  it('awaitShareEcho ignores malformed payloads and times out', async () => {
+    jest.useFakeTimers({ legacyFakeTimers: false });
+
+    const promise = awaitShareEcho('group-credential-2-3', 'share-credential-0', { timeout: 2000 })
+      .catch(e => e);
+
+    // Non-matching tag
+    emit('message', { tag: '/wrong/tag', data: 'echo' });
+    // Wrong data (non-hex)
+    emit('message', { tag: '/echo/req', data: 'not-hex' });
+    // Odd-length hex
+    emit('message', { tag: '/echo/req', data: 'abc' });
+
+    await jest.advanceTimersByTimeAsync(2000);
+
+    const error = await promise;
+    expect(error).toBeInstanceOf(EchoError);
+    expect(String(error.message)).toBe('No echo received within 2 seconds');
+  });
+
+  it('startListeningForAllEchoes invokes callback on legacy packet', async () => {
+    const onEcho = jest.fn();
+    const listener = startListeningForAllEchoes(
+      'group-credential-2-3',
+      ['share-credential-0'],
+      onEcho
+    );
+
+    emit('message', { tag: '/echo/req', data: 'echo' });
+
+    expect(onEcho).toHaveBeenCalledWith(0, 'share-credential-0');
+    listener.cleanup();
+  });
+
+  it('startListeningForAllEchoes invokes callback on challenge-hex packet', async () => {
+    const onEcho = jest.fn();
+    const listener = startListeningForAllEchoes(
+      'group-credential-2-3',
+      ['share-credential-0'],
+      onEcho
+    );
+
+    emit('message', { tag: '/echo/req', data: 'cafebabe' });
+
+    expect(onEcho).toHaveBeenCalledWith(0, 'share-credential-0');
+    listener.cleanup();
   });
 });
