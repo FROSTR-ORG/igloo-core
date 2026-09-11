@@ -210,6 +210,28 @@ two static things:
 
 Pass `bounceHost` to use your own.
 
+## Where this implementation had to choose
+
+QRST v1.4-draft does not settle everything this module needed to decide.
+[docs/qrst-spec-issues.md](qrst-spec-issues.md) records every one of them — what
+the specification says, what is ambiguous or wrong about it, which reading was
+taken here, and a proposed fix in the specification's own normative language. It
+is written to be appended to `SPEC_ISSUES.md` upstream.
+
+The ones that change behaviour a caller can see:
+
+- The `frost-share` payload is the `bfshare1` + `bfgroup1` credential pair, not
+  NKM §3.3's field-wise record, because no FROSTR client holds that record.
+- P4 is `share·G == commits[idx].pubkey` via bifrost's `is_group_member`, which
+  is what §3.3's `share·G == group_pub + commitment·index` becomes over the
+  credential form.
+- The declared 2048-byte maximum is implemented as written, so keysets above ten
+  members are refused rather than truncated.
+- A light-flow session carries its token in the `https` fragment, echoes it as a
+  `secret` tag on HELLO, and runs no nonce exchange.
+- `advanceCandidate()` is user-driven, because in Flow A the Receiver is never
+  told that a code failed.
+
 ## Test vectors
 
 `vectors/qrst-sas.json` is a verbatim copy of the specification's own normative
