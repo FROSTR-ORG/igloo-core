@@ -1,0 +1,69 @@
+{
+  "spec": "QR_SECRET_TRANSFER.md",
+  "version": "1.4-draft",
+  "section": "4 (P1), 11.4, 11.6",
+  "description": "The conformance vector §4 P1 requires at exactly the declared maximum, for the frost-share profile as igloo encodes it: a bfshare1 + bfgroup1 credential pair. P1 asks for this case because NIP-44's power-of-two padding makes an off-by-one-chunk error invisible everywhere else. Every key, nonce and identity here is a fixture chosen for the file and belongs to nobody.",
+  "profile": "frost-share",
+  "declared_max_payload_bytes": 2048,
+  "fixtures": {
+    "sender_burner_seckey": "1111111111111111111111111111111111111111111111111111111111111111",
+    "sender_burner_pubkey": "4f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa",
+    "receiver_burner_seckey": "2222222222222222222222222222222222222222222222222222222222222222",
+    "receiver_burner_pubkey": "466d7fcae563e5cb09a0d1870bb580344804617879a14949cf22285f1bae3f27",
+    "wrap_seckey": "3333333333333333333333333333333333333333333333333333333333333333",
+    "seal_nip44_nonce": "4444444444444444444444444444444444444444444444444444444444444444",
+    "wrap_nip44_nonce": "5555555555555555555555555555555555555555555555555555555555555555",
+    "created_at": 1789000000,
+    "note": "NIP-44 nonces are pinned so the ciphertexts reproduce byte for byte. A real client MUST draw them at random. The wrap's created_at is the true current time per §11.4, not NIP-59's randomised past value; the expiration tag is created_at + 600."
+  },
+  "at_declared_maximum": {
+    "description": "A frost-share record for a real 2-of-10 keyset, padded to exactly 2048 bytes with an ignored `pad` field. The padding is a property of this vector, not of the profile: it exists so the payload sits on the ceiling exactly. The record still passes the §4 P4 check.",
+    "payload": "{\"v\":1,\"share\":\"bfshare1qqqqqq0vx632m98m4zyrw0lzczcsychy5q5y3tzde37smrwt9fpkd7h0tg8wmyclm3d8m44c0pw95ewhgyuqxn4lwazt70zeeytzlnq2c8hkk2mkha6neh60pqmely9nu9kqp0lrkvkt2xyuzkt735fddlkf65cwlq67ut\",\"group\":\"bfgroup1qvreyexykjlu6llr57mmj2mvgw0n5ke6hnffrzdl0d2d0q0lq0tjyqqqqqpqqqqqqypjd7vxuxycakh2p0u9l8w4tyu5a2wgw9d0rcyl5mne2272vdnec6grza0uv44kc39uywa3qyffcmv82qpwrh2wefwc5nalkq6vt0sjec2s9aqnjvaz40f3r6cysu7u2myp49985hzwm4laejuhzvzyc6w28vumqqqqqqszrhyfq60msghaq6xuw2rpdt7em05cxuassun9mmvjxuzua6vut7ps8f7l5ksavmuxkfp4gsqdgu7frh4x36nsfmpyl22n7gxpvc36zrh5qfa8zsjax93skxvw4yd3xzd7q90cy2mr5v3p0xk5dec4cws60lp55qqqqqps886fhng8ucnknqmwrmgfcps8uyv43r5qma7g9fhzqg3hgnhz3zt7qgvlyt7e8n9h7m580qgds29vqssrrnahzazy39jaulsk0ztx5fw3gq3j80ewzww8z6hafx49ug5q2u7zxgl697wuj0yznesr4mkakcm02gqqqqqyqvq7fs5kdvg892c4wl59904tdp6d5e4885ukkyss6v99fhks4fwgkqepup9cd9q4ukjf27tw6tarnx5p25ectxc9v6gyk57ljra08fvttqp8cslksttrnaad7ayks69z99rcav6jy7vj6xj900cgt4nq9vuf0esqqqqq2quuytsw8tyun4cg5ahc0x3nknm4vp4jc5kx84kzjtx8hm06ezh65spwqq7m6eqwjul3nylh3uqvyrtdznh35svawnkee06hxj5ux0trjscrr8jqpl7m3neqe97apkcfv0ngezee0kuyzee8ssg9slur9yqcrm3qqqqqqcpjjyc9gu5fx9ncy604z7q0lae6zxqeqh35c32w3tjd8pk9u70avasrzyc0rtckwh6rsewquzj57nddkqml0yr9tcj976avsvhx0hjrgnqq98ggdvmgfvn97sc52qdly6cqdf0d93jghw4ew4jjpgvgg5f4lfruqqqqqpcrymupyn5r6g6jtex57uqquepmgm2cjhkxpqd70r6rj0uz6ppxu8ws9g4gxguvy4qz926j6gtuqt6t9mjh6r7rt3ng8wuseu4vuq069kggqf59nsehaaqj5cd53jez3eggphsqzr92hc2v7ycjv6umrc9k6njgyqqqqqyqyu2w02cxz6uqlv0cztpf2zxw7lgjwqj89vxgeeedepjt8fjg2v7eqw489xved40ejey8ktckfvmrp5a062x674qj0aeazlaghu3r36vdwqs5000256qp2rgskaeffffavtdzw4vpdndxfe35r95pezqvk9m24vqqqqqfqwpqhyje2kkn65fe9x96zynfhctfyzzy6zv07f46jqtnwwzyh66l6qmyc6vx6srz3exsqg4lvdyg8v708gfuuchwqem2wk4v8n35ffp0asp7e6u8p9762lmwq2r2q7zdzgxxjvd3r8mqw0lac67lrz02xcn2sgcqqqqq5q5qaq8xksx2ch5qrq322kcq8k7n2juhl57jaluefaz27s993qnc4gprrqrpatrg0wwu8kdjhvahjpylmr3w7g8ut0ml4f526upc5xv0jggz7v8kphsyu4zlhsrr25qt4r6qyv456gk6rs8eurg5s2ssgcy4es3qw9hd5v\",\"pad\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}",
+    "payload_bytes": 2048,
+    "payload_sha256": "77943b74e2c22356a3f76f1b5dc47a6dcf7e75daea0d6a412a14aee6a578a167",
+    "threshold": 2,
+    "members": 10,
+    "share_index": 1,
+    "group_credential": "bfgroup1qvreyexykjlu6llr57mmj2mvgw0n5ke6hnffrzdl0d2d0q0lq0tjyqqqqqpqqqqqqypjd7vxuxycakh2p0u9l8w4tyu5a2wgw9d0rcyl5mne2272vdnec6grza0uv44kc39uywa3qyffcmv82qpwrh2wefwc5nalkq6vt0sjec2s9aqnjvaz40f3r6cysu7u2myp49985hzwm4laejuhzvzyc6w28vumqqqqqqszrhyfq60msghaq6xuw2rpdt7em05cxuassun9mmvjxuzua6vut7ps8f7l5ksavmuxkfp4gsqdgu7frh4x36nsfmpyl22n7gxpvc36zrh5qfa8zsjax93skxvw4yd3xzd7q90cy2mr5v3p0xk5dec4cws60lp55qqqqqps886fhng8ucnknqmwrmgfcps8uyv43r5qma7g9fhzqg3hgnhz3zt7qgvlyt7e8n9h7m580qgds29vqssrrnahzazy39jaulsk0ztx5fw3gq3j80ewzww8z6hafx49ug5q2u7zxgl697wuj0yznesr4mkakcm02gqqqqqyqvq7fs5kdvg892c4wl59904tdp6d5e4885ukkyss6v99fhks4fwgkqepup9cd9q4ukjf27tw6tarnx5p25ectxc9v6gyk57ljra08fvttqp8cslksttrnaad7ayks69z99rcav6jy7vj6xj900cgt4nq9vuf0esqqqqq2quuytsw8tyun4cg5ahc0x3nknm4vp4jc5kx84kzjtx8hm06ezh65spwqq7m6eqwjul3nylh3uqvyrtdznh35svawnkee06hxj5ux0trjscrr8jqpl7m3neqe97apkcfv0ngezee0kuyzee8ssg9slur9yqcrm3qqqqqqcpjjyc9gu5fx9ncy604z7q0lae6zxqeqh35c32w3tjd8pk9u70avasrzyc0rtckwh6rsewquzj57nddkqml0yr9tcj976avsvhx0hjrgnqq98ggdvmgfvn97sc52qdly6cqdf0d93jghw4ew4jjpgvgg5f4lfruqqqqqpcrymupyn5r6g6jtex57uqquepmgm2cjhkxpqd70r6rj0uz6ppxu8ws9g4gxguvy4qz926j6gtuqt6t9mjh6r7rt3ng8wuseu4vuq069kggqf59nsehaaqj5cd53jez3eggphsqzr92hc2v7ycjv6umrc9k6njgyqqqqqyqyu2w02cxz6uqlv0cztpf2zxw7lgjwqj89vxgeeedepjt8fjg2v7eqw489xved40ejey8ktckfvmrp5a062x674qj0aeazlaghu3r36vdwqs5000256qp2rgskaeffffavtdzw4vpdndxfe35r95pezqvk9m24vqqqqqfqwpqhyje2kkn65fe9x96zynfhctfyzzy6zv07f46jqtnwwzyh66l6qmyc6vx6srz3exsqg4lvdyg8v708gfuuchwqem2wk4v8n35ffp0asp7e6u8p9762lmwq2r2q7zdzgxxjvd3r8mqw0lac67lrz02xcn2sgcqqqqq5q5qaq8xksx2ch5qrq322kcq8k7n2juhl57jaluefaz27s993qnc4gprrqrpatrg0wwu8kdjhvahjpylmr3w7g8ut0ml4f526upc5xv0jggz7v8kphsyu4zlhsrr25qt4r6qyv456gk6rs8eurg5s2ssgcy4es3qw9hd5v",
+    "share_credential": "bfshare1qqqqqq0vx632m98m4zyrw0lzczcsychy5q5y3tzde37smrwt9fpkd7h0tg8wmyclm3d8m44c0pw95ewhgyuqxn4lwazt70zeeytzlnq2c8hkk2mkha6neh60pqmely9nu9kqp0lrkvkt2xyuzkt735fddlkf65cwlq67ut",
+    "p4_is_group_member": true,
+    "envelope": {
+      "description": "The §11.4 rumor → seal → wrap chain over the payload above. Lengths are in bytes of the serialised JSON; the two ciphertexts are base64 as NIP-44 emits them.",
+      "rumor_kind": 24405,
+      "rumor_id": "4b5fed8d4c5ceb12e17eb0a7f414f730dd13ab72bcae4c2921a03517e8216ccf",
+      "rumor_json_bytes": 2271,
+      "seal_nip44_padded_plaintext_bytes": 2562,
+      "seal_content_bytes": 3504,
+      "seal_content_sha256": "61bbbc9fc73445c98115dab2d3ac205499d04702a8c3f49b617bf9d51493ce1f",
+      "seal_json_bytes": 3847,
+      "wrap_nip44_padded_plaintext_bytes": 4098,
+      "wrap_content_bytes": 5552,
+      "wrap_content_sha256": "d9f15ccb9c590d29878028aa0070d1d7a04b42b883e8d4b1efab83e86a2dff7b",
+      "wrap_json_bytes": 5997,
+      "expansion_payload_to_wrap_content": 2.711,
+      "expansion_payload_to_published_event": 2.928,
+      "expansion_note": "§11.6 states ×3.4 from raw payload to published event for base64 payloads. Measured here the event is ×2.93 and the content field alone ×2.71, so ×3.4 is a safe over-estimate rather than a figure to reproduce. The §11.6 table's 2 082 B payload ceiling for max_content_length = 8196 is correspondingly conservative: this 2048 B payload occupies 5 552 bytes of content.",
+      "fits_nip11_example_max_content_length_8196": true
+    }
+  },
+  "over_declared_maximum": {
+    "description": "The same construction for an 11-member keyset. A bfgroup credential grows by ~165 bytes per member, so the pair passes the ceiling at n = 11 and a conforming Sender MUST refuse to build it.",
+    "threshold": 2,
+    "members": 11,
+    "payload_bytes": 2089,
+    "must_be_refused": true
+  },
+  "member_count_ladder": {
+    "description": "Credential-pair size against member count, for the JSON record {\"v\":1,\"share\":…,\"group\":…}. The declared maximum is crossed between n = 10 and n = 11.",
+    "bytes_by_members": {
+      "2": 606,
+      "3": 771,
+      "5": 1101,
+      "7": 1430,
+      "10": 1925,
+      "11": 2089,
+      "12": 2254,
+      "15": 2749
+    }
+  }
+}

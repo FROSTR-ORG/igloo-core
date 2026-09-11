@@ -15,6 +15,7 @@ A TypeScript library providing core functionality for FROSTR/Bifrost distributed
 - 🛡️ **Policy Controls**: Configure per-peer send/receive permissions and audit signer access paths
 - 🏓 **Ping Functionality**: Test peer connectivity and measure network latency
 - 📡 **Echo Functionality**: QR code transfers and share confirmation with visual feedback
+- 🔐 **QRST Share Transfer**: Move a share between devices without putting it in the QR code ([docs/QRST.md](docs/QRST.md))
 - 🔐 **Nostr Integration**: Complete nostr key management and format conversion utilities
 - 🛡️ **Strong Types**: Full TypeScript support with comprehensive type definitions
 - ⚡ **Error Handling**: Structured error types with detailed context
@@ -388,6 +389,78 @@ console.log('Listener active:', listener.isActive);
 listener.cleanup();
 ```
 
+### QRST Share Transfer
+
+QRST moves a share between two devices without the credential ever appearing in
+the QR code. The code carries a burner public key and relay hints; the two
+devices derive a five-digit pairing code which a person carries from one screen
+to the other; the credential travels NIP-59 gift-wrapped over relays. It sits
+beside the echo flow rather than replacing it — a QRST receiver calls `sendEcho`
+itself once the share is committed.
+
+Full documentation, including the consent and code-entry rules an application
+**must** follow, is in [docs/QRST.md](docs/QRST.md). Implements
+[QR_SECRET_TRANSFER.md](https://github.com/sybenx/nostr-key-management/blob/main/QR_SECRET_TRANSFER.md)
+v1.4-draft, `frost-share` profile.
+
+#### `startQrstReceive(options?)`
+
+This device wants a share. Returns synchronously with the URI to render, then
+runs the handshake in the background.
+
+```typescript
+import { startQrstReceive } from '@frostr/igloo-core';
+
+const session = startQrstReceive({
+  relays: ['wss://relay.damus.io'],
+  onSasReady: (digits) => showPairingCode(digits),
+  onPayload: (rendering) => showConfirmation(rendering),
+  onNotice: (notice) => showNotice(notice.message)
+});
+
+renderQrCode(session.uri);
+
+// Nothing is committed until the user confirms the rendering.
+const { shareCredential, groupCredential, record } = await session.accept();
+```
+
+#### `startQrstSend(options)`
+
+This device holds a share and releases one. The promise resolves once the
+handshake is complete and the release prompt can be shown; nothing has left the
+device at that point.
+
+```typescript
+import { startQrstSend } from '@frostr/igloo-core';
+
+const session = await startQrstSend({
+  uri: scannedUri,
+  pairingSource: 'camera',   // 'paste' for a URI this camera did not read
+  payload: { share: shareCredential, group: groupCredential }
+});
+
+showReleasePrompt(session.consent);   // see docs/QRST.md on the layout rules
+
+const result = await session.submitCode(digitsTypedByTheUser);
+if (!result.matched) showAttemptsRemaining(result.attemptsRemaining);
+```
+
+`pairingSource` sets the consent friction tier and defaults to the strictest
+reading: anything this device's own camera did not read is treated as
+unestablished.
+
+#### Supporting functions
+
+```typescript
+import {
+  buildQrstUri,          // build a pairing link
+  parseQrstUri,          // parse one, rejecting unknown v / missing mode / missing p
+  buildQrstConsentPrompt,// the §9.1 release-prompt copy
+  deriveQrstSas,         // the §6 five-digit derivation
+  getQrstRestartThrottle // §9.3: repeated failures can mean interference
+} from '@frostr/igloo-core';
+```
+
 ### Nostr Utilities
 
 Complete nostr key management and format conversion.
@@ -753,6 +826,7 @@ import {
   NodeError, 
   EchoError, 
   NostrError,
+  QrstError,
   BifrostValidationError 
 } from '@frostr/igloo-core';
 
@@ -1028,6 +1102,33 @@ export function startListeningForAllEchoes(groupCredential: string, shareCredent
 export function sendEcho(groupCredential: string, shareCredential: string, challenge: string, options?: EchoOptions): Promise<boolean>
 export const DEFAULT_ECHO_RELAYS: string[]
 
+// QRST share transfer (see docs/QRST.md)
+export function startQrstReceive(options?: QrstReceiveOptions): QrstReceiveSession
+export function startQrstSend(options: QrstSendOptions): Promise<QrstSendSession>
+export function buildQrstUri(options: QrstUriOptions): string
+export function buildQrstFrostUri(options: QrstUriOptions): string
+export function parseQrstUri(uri: string, options?: { profiles?: string[] }): QrstUriParams
+export function buildQrstConsentPrompt(options: { uri: QrstUriParams; pairingSource: QrstPairingSource; handshake: QrstHandshake }): QrstConsentPrompt
+export function deriveQrstCommit(version: number, contactingPubkey: string, nonce: string): string
+export function deriveQrstSas(input: QrstSasInput): { code: string; digits: string }
+export function buildQrstFrostSharePayload(payload: QrstFrostSharePayload): string
+export function parseQrstFrostSharePayload(content: string): QrstFrostSharePayload
+export function checkQrstFrostSharePayload(payload: QrstFrostSharePayload): QrstPayloadCheck
+export function describeQrstFrostSharePayload(payload: QrstFrostSharePayload): QrstFrostShareRendering
+export function createQrstRelayTransport(config: QrstTransportConfig): QrstTransport
+export function getQrstRestartThrottle(now?: number): QrstRestartThrottle
+export function acknowledgeQrstFailures(now?: number): void
+export function setQrstFailureStore(store: QrstFailureStore): void
+export function resetQrstFailureMemory(): void
+export const QRST_KINDS: { HELLO: 24401; REQUEST: 24402; NONCE: 24403; REVEAL: 24404; PAYLOAD: 24405; ACK: 24406; ABORT: 24407 }
+export const QRST_SESSION_LIFETIME_MS: number
+export const QRST_SLACK_SECONDS: number
+export const QRST_MAX_SAS_ATTEMPTS: number
+export const QRST_MAX_HELD_CANDIDATES: number
+export const QRST_FROST_SHARE_MAX_PAYLOAD_BYTES: number
+export const QRST_DEFAULT_BOUNCE_HOST: string
+export const QRST_DEFAULT_RELAYS: string[]
+
 // Nostr functions
 export function generateNostrKeyPair(): NostrKeyPair
 export function nsecToHex(nsec: string): string
@@ -1082,6 +1183,7 @@ export class KeysetError extends IglooError
 export class NodeError extends IglooError  
 export class EchoError extends IglooError
 export class RecoveryError extends IglooError
+export class QrstError extends IglooError
 export class NostrError extends IglooError
 export class BifrostValidationError extends IglooError
 export class NostrValidationError extends IglooError
