@@ -37,6 +37,78 @@ export {
   DEFAULT_ECHO_RELAYS
 } from './echo.js';
 
+// Export QRST (QR Secret Transfer) share delivery
+export {
+  // Flows
+  startQrstReceive,
+  startQrstSend,
+  // §6 derivations
+  deriveQrstCommit,
+  deriveQrstSas,
+  // §11.2 URIs
+  buildQrstUri,
+  buildQrstFrostUri,
+  parseQrstUri,
+  // §5 / NKM §3.3 profile
+  buildQrstFrostSharePayload,
+  parseQrstFrostSharePayload,
+  checkQrstFrostSharePayload,
+  describeQrstFrostSharePayload,
+  buildQrstConsentPrompt,
+  // §11.3 transport
+  createQrstRelayTransport,
+  // §9.3 restart throttle
+  getQrstRestartThrottle,
+  acknowledgeQrstFailures,
+  setQrstFailureStore,
+  resetQrstFailureMemory,
+  // Constants
+  QRST_VERSION,
+  QRST_KINDS,
+  QRST_SESSION_LIFETIME_MS,
+  QRST_SLACK_SECONDS,
+  QRST_MAX_SAS_ATTEMPTS,
+  QRST_MAX_HELD_CANDIDATES,
+  QRST_FAILED_SESSION_WARN_THRESHOLD,
+  QRST_FAILURE_MEMORY_MS,
+  QRST_PROBE_TIMEOUT_MS,
+  QRST_ACK_GRACE_MS,
+  QRST_PROFILE_FROST_SHARE,
+  QRST_FROST_SHARE_MAX_PAYLOAD_BYTES,
+  QRST_DEFAULT_BOUNCE_HOST,
+  QRST_DEFAULT_BOUNCE_PATH,
+  QRST_DEFAULT_RELAYS,
+  QRST_FROST_SCHEME,
+  // Types
+  type QrstMode,
+  type QrstPairingSource,
+  type QrstFrictionTier,
+  type QrstHandshake,
+  type QrstUriParams,
+  type QrstUriOptions,
+  type QrstPeerClaim,
+  type QrstConsentPrompt,
+  type QrstFrostSharePayload,
+  type QrstFrostShareRendering,
+  type QrstPayloadCheck,
+  type QrstFailureReason,
+  type QrstNotice,
+  type QrstCandidateInfo,
+  type QrstTransferRecord,
+  type QrstReceiveOptions,
+  type QrstReceiveSession,
+  type QrstReceiveResult,
+  type QrstSendOptions,
+  type QrstSendSession,
+  type QrstCodeResult,
+  type QrstSasInput,
+  type QrstTransport,
+  type QrstTransportConfig,
+  type QrstTransportFactory,
+  type QrstFailureStore,
+  type QrstRestartThrottle
+} from './qrst.js';
+
 // Export ping functionality
 export {
   pingPeer,

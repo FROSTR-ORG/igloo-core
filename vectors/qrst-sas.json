@@ -1,0 +1,26 @@
+{
+  "spec": "QR_SECRET_TRANSFER.md",
+  "version": "1.2-draft",
+  "section": "6",
+  "description": "Known answers for the commit and short-code derivations of \u00a76. Roles use the specification's own names: SND is the Sender, RCV the Receiver. The protocol version v is hashed as a single byte (0x01 for v=1). Every key here is a fixture and belongs to nobody.",
+  "profile": "nostr-nsec",
+  "v": 1,
+  "snd_pubkey": "7208881482c8995728e76633bcdf0ebb65155c8f4979a4e766713f374a5d8152",
+  "rcv_pubkey": "01f30c73852a9266359a6779f70aff766c3216d69f329de8b307fba871936d73",
+  "nonce_s": "1111111111111111111111111111111111111111111111111111111111111111",
+  "nonce_r": "2222222222222222222222222222222222222222222222222222222222222222",
+  "commit_snd_contacting": {
+    "description": "Flow A (\u00a77): the Sender is the contacting party C, so commit = SHA-256('qrst-commit' || v || SND.pub || nonce_S).",
+    "commit": "7bb4b61e350e87cde6cf34390d357c4a458083773cb1b6ab3f09c00d80d1a686"
+  },
+  "commit_rcv_contacting": {
+    "description": "Flow B (\u00a78): the Receiver is the contacting party C, so commit = SHA-256('qrst-commit' || v || RCV.pub || nonce_R).",
+    "commit": "e9f9f34390c8214d6692c858ff99214daf4a99b51f6fa9d7340cb9ad053affc5"
+  },
+  "code": "40a6c85f4fb8924132b24ea99909d7f936a127d6ff05924e52c38d564cfb0c06",
+  "digits": "56399",
+  "code_with_roles_transposed": {
+    "description": "Derived with the Sender and Receiver roles exchanged in the transcript (both the pubkey order and the nonces). An implementation that produces this value has the role ordering backwards. It MUST NOT equal `code`.",
+    "code": "a58b2ace8a4186af0925236a2476729a382351e76df9d12fa9aa752f72be0d1d"
+  }
+}

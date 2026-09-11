@@ -44,3 +44,39 @@ export const PackageEncoder = {
 export default {
   PackageEncoder
 }; 
+/**
+ * Fixture registry for credential strings that look like the real thing.
+ *
+ * The mock's own `share-credential-…` / `group-credential-…` shapes cannot
+ * carry a share index alongside a member list, which the QRST P4 and P5 checks
+ * both need. Tests register a `bfshare1…` / `bfgroup1…` string here and the
+ * decoders below return the package it maps to.
+ */
+export const __fixtures = {
+  shares: new Map<string, any>(),
+  groups: new Map<string, any>(),
+  reset() {
+    __fixtures.shares.clear();
+    __fixtures.groups.clear();
+  }
+};
+
+const realShareDecode = PackageEncoder.share.decode;
+PackageEncoder.share.decode = jest.fn().mockImplementation((credential: string) => {
+  const fixture = __fixtures.shares.get(credential);
+  if (fixture) return fixture;
+  if (typeof credential === 'string' && credential.startsWith('bfshare1')) {
+    throw new Error('Invalid share credential');
+  }
+  return (realShareDecode as any)(credential);
+});
+
+const realGroupDecode = PackageEncoder.group.decode;
+PackageEncoder.group.decode = jest.fn().mockImplementation((credential: string) => {
+  const fixture = __fixtures.groups.get(credential);
+  if (fixture) return fixture;
+  if (typeof credential === 'string' && credential.startsWith('bfgroup1')) {
+    throw new Error('Invalid group credential');
+  }
+  return (realGroupDecode as any)(credential);
+});

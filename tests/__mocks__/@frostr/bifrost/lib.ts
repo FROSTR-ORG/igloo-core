@@ -22,3 +22,15 @@ export const generate_dealer_pkg = jest.fn().mockImplementation((threshold: numb
 });
 
 export const recover_secret_key = jest.fn().mockReturnValue('abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890'); 
+/**
+ * QRST's §4 P4 check delegates to bifrost's own `is_group_member`, which
+ * derives the share's public key from its scalar and looks for a commitment at
+ * the same index carrying that key. The mock does the same comparison over the
+ * fixture packages, without the curve arithmetic.
+ */
+export const is_group_member = jest.fn().mockImplementation((group: any, share: any) => {
+  const members = group?.commits ?? group?.members ?? [];
+  return members.some(
+    (member: any) => member.idx === share.idx && member.pubkey === share.pubkey
+  );
+});

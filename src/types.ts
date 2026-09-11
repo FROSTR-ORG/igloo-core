@@ -289,6 +289,13 @@ export class NostrError extends IglooError {
   }
 }
 
+export class QrstError extends IglooError {
+  constructor(message: string, details?: any) {
+    super(message, 'QRST_ERROR', details);
+    this.name = 'QrstError';
+  }
+}
+
 // Validation types
 export interface ValidationResult {
   isValid: boolean;
